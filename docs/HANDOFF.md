@@ -6,13 +6,14 @@ You're picking up a project whose MVP is built: build steps 1–6 work end to en
 
 | Step | Status | Where |
 |---|---|---|
-| 1 Synthetic data | Done | `backend/pipeline/generate_data.py` |
-| 2 Features | Done; also compliance features and per-transaction flags | `backend/pipeline/build_features.py` |
+| 1 Synthetic data | Done; 9 risky scenarios incl. third-party funding, dormant accounts, identity risk; payment methods and KYC / PEP / sanctions fields | `backend/pipeline/generate_data.py` |
+| 2 Features | Done; compliance, money-flow (U-turn, quick cash-out, low-odds, third-party), dormancy, occupation and behaviour-group (k-means) features; per-transaction flags | `backend/pipeline/build_features.py` |
 | 2b AI risk model | Done: gradient boosting + SHAP, scored out-of-fold | `backend/pipeline/train_model.py` |
-| 3 Detection and scoring | Done | `backend/pipeline/detect.py` |
+| 3 Detection and scoring | Done; overlap-aware soft-capped score, confidence + mitigating factors, watchlist | `backend/pipeline/detect.py` |
+| 3b Cross-seed test | Done: the system tested on two populations the AI never saw | `backend/pipeline/cross_seed.py` |
 | 4 Validation | Done; all "done when" checks pass | `backend/pipeline/validate.py`, `docs/VALIDATION.md` |
-| 5 API | Done (decisions stored locally, no Jube yet); plus timeline, stats, model card, case report and AI endpoints | `backend/app/` |
-| 6 Dashboard | Done; keyboard-only flow tested in Chrome. Bare-bones panels for the AI summary, Ask, queue search, timeline, transaction flags and case report (ready for polish) | `frontend/` |
+| 5 API | Done (decisions stored locally with investigator names, no Jube yet); plus watchlist, timeline, stats with trends, model card, case report, audit trail and AI endpoints | `backend/app/` |
+| 6 Dashboard | Done; tabbed detail (Overview, Evidence, Activity, Network graph, Ask AI), Overview screen, confidence, watchlist, investigator name. Tested in Chrome; ready for visual polish | `frontend/` |
 | 7 Bonus | Network analysis, automated recommendations, ML + SHAP, LLM summary / Q&A / search (free providers) and structuring + 24-hour-rule indicators done; Jube not started | `detect.py`, `train_model.py`, `backend/app/ai.py` |
 | 8 Demo | `docs/DEMO.md` and `run_demo.ps1` / `run_demo.sh` done; slides and time limit TBD | `docs/DEMO.md` |
 
@@ -31,9 +32,10 @@ Quick start: `.\run_demo.ps1` (Windows) or `./run_demo.sh`.
 
 - Topic: **sports betting only**, all data **synthetic**.
 - Stack: Python + FastAPI backend, plain HTML/CSS/JS frontend, Jube for alerts and cases.
-- Detection: rules + Isolation Forest + peer-group z-scores + a supervised model (scikit-learn gradient boosting + SHAP, chosen over LightGBM/XGBoost because it needs no extra install). LLM features use free providers only (Ollama, Groq, Gemini), each with a non-LLM fallback.
-- Four anomaly types: income mismatch, peer deviation, location anomaly, behaviour change. Also flagged: money movement, linked players, structuring and the $10,000 24-hour reporting threshold.
-- One 0–100 risk score with bands Low / Medium / High / Critical, always shown as **number + label**.
+- Detection: rules + peer-group z-scores + behaviour groups (k-means) + Isolation Forest + a supervised model (scikit-learn gradient boosting + SHAP, chosen over LightGBM/XGBoost because it needs no extra install). LLM features use free providers only (Ollama, Groq, Gemini), each with a non-LLM fallback.
+- Four anomaly types: income mismatch, peer deviation, location anomaly, behaviour change. Also flagged: occupation mismatch, money movement (layering, low-odds betting, quick cash-outs), third-party funding, U-turn withdrawals, dormant accounts, identity & screening (KYC, sanctions, PEP), linked players, structuring and the $10,000 24-hour reporting threshold.
+- One 0–99 risk score with bands Low / Medium / High / Critical, always shown as **number + label**. Overlapping flags of one type count half; above 70 points the score rises progressively more slowly (soft cap), so strong cases stay ordered. Every alert has a confidence and its mitigating factors.
+- Every decision needs an investigator name (audit trail).
 - Every alert must have reasons with evidence values. LLM text may only restate computed evidence.
 - File names and folder layout: see `WORKFLOW.md` and the README project structure.
 - Look and feel: calm, regulatory, high-contrast, not casino-like (see `DESIGN.md`).
@@ -48,7 +50,7 @@ The original first tasks (scaffold, step 1, mock alerts) are done. Next:
 
 1. **Assign owners and confirm decisions**: fill in the team, then review the resolved open items below (especially #4, #5, #7, #8), since they were settled by the build, not by the team.
 2. **Rehearse the demo** in `docs/DEMO.md` from a clean clone and set the time limit (#14).
-3. **Polish the new AI and investigation panels** (frontend) and **pick a free LLM for the demo** (#11). Remaining stretch: Jube integration (decisions already go through `POST /alerts/{id}/decision`, which is where a Jube sync would hook in) and peer-deviation recall (70%, still the weakest type).
+3. **Polish the dashboard visually** (frontend teammate) and **add tests + a database** (backend teammate). Remaining stretch: Jube integration (decisions already go through `POST /alerts/{id}/decision`) and peer-deviation recall (still the weakest type; the watchlist catches some of the misses).
 
 ## 5. Definition of done (hackathon demo)
 
@@ -73,7 +75,7 @@ The **Status** column records what the build used. "Built as" items work but wer
 | 2 | Owner for each build step (1–8) | Team lead | `WORKFLOW.md` owner lines | Open |
 | 3 | GitHub repository URL (must be **private**) | Team lead | `git remote`, README | Open: current repo is `github.com/ellitellicity-commits/OLG-AntiMoney-Laundering`; confirm it is private |
 | 4 | Python version (3.11 suggested, not confirmed) | Backend / data owner | README "Getting started" | Built as: tested on 3.14 only (the version on the build machine) |
-| 5 | Dataset size and injection rates (draft: 5,000 players, 180 days, 3–5% risky) | Data owner (step 1) | `WORKFLOW.md` step 1, `generate_data.py` config | Built as: 5,000 players, 180 days, 223 injected (4.5%, including 30 structuring) plus 450 benign-but-unusual normal players |
+| 5 | Dataset size and injection rates (draft: 5,000 players, 180 days, 3–5% risky) | Data owner (step 1) | `WORKFLOW.md` step 1, `generate_data.py` config | Built as: 5,000 players, 180 days, 289 injected (5.8%, 9 scenarios) plus benign-but-unusual normal players (incl. PEPs, unverified identities and false screening matches) |
 | 6 | Peer-group definition (draft: age band × income band × region) | Detection owner (step 2) | `WORKFLOW.md` step 2 | Built as drafted, falling back to age × income, then income, for groups under 30 |
 | 7 | Score weights and z-score threshold (draft: \|z\| > 3) | Detection owner (steps 3–4) | `detect.py`, `docs/VALIDATION.md` | Built as: z > 3 (upward only, robust z on a log scale); points in `detect.py` |
 | 8 | Risk-band cut-offs (draft: Low 0–39, Medium 40–69, High 70–89, Critical 90–100) | Detection owner, after validation | `DESIGN.md` §2, `detect.py` | Kept as drafted after validation; alerts at 40+ |

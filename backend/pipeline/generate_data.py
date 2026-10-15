@@ -4,7 +4,9 @@ Builds a seeded, reproducible population of sports-betting players and their
 transactions, then injects known risky behaviour for a labelled subset.
 
 Outputs (data/synthetic/):
-    players.csv             player_id, age_band, occupation, income_band, home_region, signup_date
+    players.csv             player_id, age_band, occupation, income_band, home_region, signup_date,
+                            kyc_status, pep, sanctions_screening
+    payment_methods.csv     payment_method_id, player_id, method_type, holder_matches_player, first_used
     transactions.csv        txn_id, player_id, timestamp, type, amount_cad, sport, market, odds,
                             channel, device_id, ip_region, payment_method_id
     linked_identifiers.csv  player_id, identifier_type, identifier_value
@@ -14,9 +16,18 @@ Outputs (data/synthetic/):
                             explain false positives in docs/VALIDATION.md (not ground truth)
     metadata.json           seed, date range and counts used by later steps
 
-Injected scenarios: income_mismatch, peer_deviation, location_anomaly,
-behaviour_change, structuring (deposits split to stay under the $10,000 reporting
-threshold) and the stretch scenario linked_ring.
+Injected scenarios: income_mismatch (a third of them with a declared income that is
+implausible for their occupation), peer_deviation, location_anomaly, behaviour_change,
+structuring (deposits split to stay under the $10,000 reporting threshold),
+third_party_funding (deposits from a card in someone else's name, withdrawn to the
+player's own account: a "U-turn"), dormant_reactivation (an account silent for months
+that suddenly moves large sums), identity_risk (unverified identity or a sanctions
+screening hit, with large deposits) and linked_ring (money mules sharing a card and device,
+withdrawing to their own accounts).
+
+Benign-but-unusual players also include PEPs, unverified small players, false-positive
+sanctions screening matches and household members using a partner's card, so the
+compliance checks have realistic false positives.
 
 Everything is synthetic. No real people, accounts or OLG data.
 
@@ -47,6 +58,9 @@ CONFIG = {
         "location_anomaly": 40,
         "behaviour_change": 40,
         "structuring": 30,
+        "third_party_funding": 25,
+        "dormant_reactivation": 25,
+        "identity_risk": 20,
     },
     "linked_rings": 6,
     "ring_size": (4, 6),
@@ -90,8 +104,9 @@ DAY_HOUR_P = _w / _w.sum()
 DAY_HOUR_CUM = np.cumsum(DAY_HOUR_P)
 SPORTS_ARR, SPORT_CUM = np.array(SPORTS), np.cumsum(SPORT_P)
 MARKETS_ARR, MARKET_CUM = np.array(MARKETS), np.cumsum(MARKET_P)
-# Decimal odds range per market, in MARKETS order.
-ODDS_LO = np.array([1.30, 1.83, 1.83, 3.0, 1.6])
+# Decimal odds range per market, in MARKETS order. Moneyline includes heavy favourites, so
+# ordinary players also place some near-certain bets (low-odds betting is a matter of degree).
+ODDS_LO = np.array([1.08, 1.83, 1.83, 3.0, 1.6])
 ODDS_SPAN = np.array([3.2, 2.05, 2.05, 12.0, 4.5]) - ODDS_LO
 PARLAY = MARKETS.index("parlay")
 
@@ -140,6 +155,11 @@ class Player:
     address: str
     scenario: str = ""
     benign: str = ""
+    kyc_status: str = "verified"
+    pep: bool = False
+    sanctions: str = "clear"
+    inflated_income: bool = False
+    pm_holder: dict = field(default_factory=dict)  # payment method -> holder name matches the player
     # Per-day multipliers / overrides, filled in by scenario setup.
     p_mult: np.ndarray = field(default=None)
     stake_mult: np.ndarray = field(default=None)
@@ -285,8 +305,12 @@ def simulate_normal(rng, p: Player, ledger: Ledger, start_ts: int, days: int) ->
 # --- Scenario event generators ------------------------------------------------------
 
 def cash_cycle(rng, p: Player, ledger: Ledger, ts: int, deposit: float, bet_share: float,
-               withdraw_share: float, pm: str, device: str, region: str, channel: str = "web"):
-    """Deposit, a few low-odds bets, then withdraw most of it a few days later."""
+               withdraw_share: float, pm: str, device: str, region: str, channel: str = "web",
+               withdraw_pm: str | None = None, max_wait_days: int = 4):
+    """Deposit, a few low-odds bets, then withdraw most of it a few days later.
+
+    withdraw_pm sends the money out to a different payment method than it came in on.
+    """
     ledger.add(player_id=p.player_id, ts=ts, type="deposit", amount_cad=deposit, channel=channel,
                device_id=device, ip_region=region, payment_method_id=pm)
     n = int(rng.integers(1, 4))
@@ -302,9 +326,9 @@ def cash_cycle(rng, p: Player, ledger: Ledger, ts: int, deposit: float, bet_shar
             ledger.add(ts=t + int(rng.integers(2 * HOUR, 5 * HOUR)), type="payout",
                        amount_cad=round(float(s) * odds, 2), **common)
     if withdraw_share > 0:
-        ledger.add(player_id=p.player_id, ts=t + int(rng.integers(DAY, 4 * DAY)), type="withdrawal",
-                   amount_cad=round(deposit * withdraw_share, 2), channel=channel, device_id=device,
-                   ip_region=region, payment_method_id=pm)
+        ledger.add(player_id=p.player_id, ts=t + int(rng.integers(6 * HOUR, max_wait_days * DAY)),
+                   type="withdrawal", amount_cad=round(deposit * withdraw_share, 2), channel=channel,
+                   device_id=device, ip_region=region, payment_method_id=withdraw_pm or pm)
 
 
 def inject_income_mismatch(rng, p: Player, ledger: Ledger, start_ts: int, s: int, days: int):
@@ -312,7 +336,9 @@ def inject_income_mismatch(rng, p: Player, ledger: Ledger, start_ts: int, s: int
     d = s
     while d < days:
         ts = start_ts + d * DAY + int(rng.integers(10 * HOUR, 23 * HOUR))
-        deposit = round_to(p.monthly_income * rng.uniform(0.6, 1.8), 50)
+        # Inflated declarers deposit "only" up to ~2x the declared income, so the income check alone
+        # misses them; the occupation shows the declared income is implausible.
+        deposit = round_to(p.monthly_income * (rng.uniform(0.25, 0.5) if p.inflated_income else rng.uniform(0.6, 1.8)), 50)
         if cash_out:
             cash_cycle(rng, p, ledger, ts, deposit, rng.uniform(0.15, 0.35), rng.uniform(0.6, 0.9),
                        p.pms[0], p.devices[0], p.home_region, p.channel if p.channel != "retail" else "app")
@@ -337,6 +363,7 @@ def inject_takeover(rng, p: Player, ledger: Ledger, start_ts: int, s: int, days:
     """Someone else uses the account from a new device in another jurisdiction."""
     region = TAKEOVER_REGIONS[rng.choice(len(TAKEOVER_REGIONS))]
     device, pm = f"DX{p.idx + 1:05d}", f"PMX{p.idx + 1:05d}"
+    p.pm_holder[pm] = False  # the fraudster's card is not in the account holder's name
     owner_days = [d for d in sorted(activity) if d >= s]
     other_days = [d for d in range(s, days) if d not in activity]
     n_sessions = int(rng.integers(3, 7))
@@ -402,9 +429,47 @@ def inject_ring_flows(rng, p: Player, ledger: Ledger, start_ts: int, s: int, day
     while d < days:
         ts = start_ts + d * DAY + int(rng.integers(9 * HOUR, 23 * HOUR))
         device = ring["device"] if rng.random() < 0.7 else p.devices[0]
+        # Mules fund the shared card's deposits and cash out to their own accounts (U-turn).
         cash_cycle(rng, p, ledger, ts, round_to(rng.uniform(500, 3000), 100), rng.uniform(0.2, 0.4),
-                   rng.uniform(0.75, 0.95), ring["pm"], device, p.home_region)
+                   rng.uniform(0.75, 0.95), ring["pm"], device, p.home_region, withdraw_pm=p.pms[0])
         d += int(rng.integers(4, 10))
+
+
+def inject_third_party(rng, p: Player, ledger: Ledger, start_ts: int, s: int, days: int):
+    """Deposits from a card in someone else's name, withdrawn to the player's own account."""
+    pm = f"PMT{p.idx + 1:05d}"
+    p.pm_holder[pm] = False
+    channel = p.channel if p.channel != "retail" else "app"
+    d = s
+    while d < days:
+        ts = start_ts + d * DAY + int(rng.integers(9 * HOUR, 22 * HOUR))
+        cash_cycle(rng, p, ledger, ts, round_to(rng.uniform(800, 3000), 50), rng.uniform(0.2, 0.4),
+                   rng.uniform(0.7, 0.9), pm, p.devices[0], p.home_region, channel, withdraw_pm=p.pms[0],
+                   max_wait_days=3)
+        d += int(rng.integers(3, 8))
+
+
+def inject_dormant(rng, p: Player, ledger: Ledger, start_ts: int, s: int, days: int):
+    """A long-silent account suddenly moves money: large deposits, little betting, fast cash-outs."""
+    channel = p.channel if p.channel != "retail" else "app"
+    d = s
+    while d < days:
+        ts = start_ts + d * DAY + int(rng.integers(9 * HOUR, 22 * HOUR))
+        deposit = round_to(max(1500.0, p.monthly_income * rng.uniform(0.6, 1.4)), 100)
+        cash_cycle(rng, p, ledger, ts, deposit, rng.uniform(0.15, 0.35), rng.uniform(0.6, 0.9), p.pms[0],
+                   p.devices[0], p.home_region, channel, max_wait_days=3)
+        d += int(rng.integers(4, 9))
+
+
+def inject_identity_risk(rng, p: Player, ledger: Ledger, start_ts: int, s: int, days: int):
+    """Large deposits on an account whose identity is not verified (or that hit sanctions screening)."""
+    channel = p.channel if p.channel != "retail" else "app"
+    d = s
+    while d < days:
+        ts = start_ts + d * DAY + int(rng.integers(9 * HOUR, 22 * HOUR))
+        cash_cycle(rng, p, ledger, ts, round_to(rng.uniform(1500, 4000), 100), rng.uniform(0.2, 0.5),
+                   rng.uniform(0.5, 0.85), p.pms[0], p.devices[0], p.home_region, channel)
+        d += int(rng.integers(4, 9))
 
 
 # --- Main -----------------------------------------------------------------------
@@ -421,6 +486,11 @@ def generate(cfg: dict) -> dict[str, pd.DataFrame]:
     end_ts = int((end_day + pd.Timedelta(days=1)).timestamp())  # exclusive
 
     players = make_players(rng, fake, cfg, start_ts)
+    kyc = rng.choice(["verified", "pending", "expired"], size=len(players), p=[0.965, 0.025, 0.010])
+    pep = rng.random(len(players)) < 0.004
+    screen_fp = rng.random(len(players)) < 0.002  # name-match false positives, as real screening produces
+    for p, k, is_pep, fp in zip(players, kyc, pep, screen_fp):
+        p.kyc_status, p.pep, p.sanctions = str(k), bool(is_pep), "potential match" if fp else "clear"
     order = rng.permutation(len(players))
     cursor = 0
 
@@ -441,6 +511,11 @@ def generate(cfg: dict) -> dict[str, pd.DataFrame]:
     # Injected scenarios ---------------------------------------------------------
     for p in take(cfg["scenario_players"]["income_mismatch"]):
         set_income(p, INCOME_BANDS[rng.choice(3)], fake)
+        if p.idx % 3 == 0:
+            # Declares a high income that the occupation cannot support (keeps a low-income job title).
+            job = p.occupation if p.occupation != "Retired" else fake.random_element(OCCUPATIONS["<20k"])
+            set_income(p, INCOME_BANDS[4 + rng.choice(2)], fake)
+            p.occupation, p.inflated_income = job, True
         p.scenario, s = "income_mismatch", int(rng.integers(30, days - 60))
         scenario_start[p.idx] = s
         label(p, p.scenario, s, labels)
@@ -477,6 +552,27 @@ def generate(cfg: dict) -> dict[str, pd.DataFrame]:
         scenario_start[p.idx] = s
         label(p, p.scenario, s, labels)
 
+    for p in take(cfg["scenario_players"]["third_party_funding"]):
+        p.scenario, s = "third_party_funding", days - int(rng.integers(25, 45))
+        scenario_start[p.idx] = s
+        label(p, p.scenario, s, labels)
+
+    for p in take(cfg["scenario_players"]["dormant_reactivation"]):
+        s = days - int(rng.integers(15, 26))
+        p.p_mult[30:s] = 0.0  # active in the first month, then silent until the reactivation
+        p.p_mult[s:] = 0.0    # after reactivation only the injected money movement
+        p.scenario = "dormant_reactivation"
+        scenario_start[p.idx] = s
+        label(p, p.scenario, s, labels)
+
+    for i, p in enumerate(take(cfg["scenario_players"]["identity_risk"])):
+        p.kyc_status = ["pending", "expired"][i % 2]
+        if i % 4 == 0:
+            p.kyc_status, p.sanctions = "verified", "potential match"
+        p.scenario, s = "identity_risk", days - int(rng.integers(25, 45))
+        scenario_start[p.idx] = s
+        label(p, p.scenario, s, labels)
+
     rings = []
     for r in range(cfg["linked_rings"]):
         lo, hi = cfg["ring_size"]
@@ -486,6 +582,7 @@ def generate(cfg: dict) -> dict[str, pd.DataFrame]:
         s = int(rng.integers(days - 100, days - 40))
         for p in members:
             p.scenario, p.home_region, p.address = "linked_ring", ring["region"], ring["address"]
+            p.pm_holder[ring["pm"]] = False
             scenario_start[p.idx] = s
             label(p, p.scenario, s, labels)
         rings.append(ring)
@@ -527,9 +624,22 @@ def generate(cfg: dict) -> dict[str, pd.DataFrame]:
         b.address, b.home_region = a.address, a.home_region
         if rng.random() < 0.5:
             b.devices = [b.devices[0], a.devices[0]]
+        if rng.random() < 0.3:  # sometimes deposits with the partner's card (benign third-party payment)
+            b.pms = [b.pms[0], a.pms[0]]
+            b.pm_holder[a.pms[0]] = False
         for p in (a, b):
             p.benign = "household"
             label(p, p.benign, 0, benign)
+
+    for p in players:  # compliance attributes on ordinary players are benign until behaviour says otherwise
+        if p.scenario:
+            continue
+        if p.pep:
+            label(p, "pep", 0, benign)
+        if p.sanctions != "clear":
+            label(p, "screening_false_positive", 0, benign)
+        if p.kyc_status != "verified":
+            label(p, "unverified_identity", 0, benign)
 
     # Simulate ------------------------------------------------------------------------
     ledger = Ledger()
@@ -542,6 +652,12 @@ def generate(cfg: dict) -> dict[str, pd.DataFrame]:
             extra_ids[p.player_id] = inject_takeover(rng, p, ledger, start_ts, scenario_start[p.idx], days, activity)
         elif p.scenario == "structuring":
             inject_structuring(rng, p, ledger, start_ts, scenario_start[p.idx], days)
+        elif p.scenario == "third_party_funding":
+            inject_third_party(rng, p, ledger, start_ts, scenario_start[p.idx], days)
+        elif p.scenario == "dormant_reactivation":
+            inject_dormant(rng, p, ledger, start_ts, scenario_start[p.idx], days)
+        elif p.scenario == "identity_risk":
+            inject_identity_risk(rng, p, ledger, start_ts, scenario_start[p.idx], days)
     for ring in rings:
         for p in ring["members"]:
             inject_ring_flows(rng, p, ledger, start_ts, scenario_start[p.idx], days, ring)
@@ -558,7 +674,25 @@ def generate(cfg: dict) -> dict[str, pd.DataFrame]:
         "player_id": p.player_id, "age_band": p.age_band, "occupation": p.occupation,
         "income_band": p.income_band, "home_region": p.home_region,
         "signup_date": pd.to_datetime(p.signup_ts, unit="s").date().isoformat(),
+        "kyc_status": p.kyc_status, "pep": p.pep, "sanctions_screening": p.sanctions,
     } for p in players])
+
+    # Payment methods actually used, with the holder check a payments provider would return.
+    by_id = {p.player_id: p for p in players}
+    used_pm = (tx.loc[tx.payment_method_id != "", ["player_id", "payment_method_id", "timestamp"]]
+               .groupby(["payment_method_id", "player_id"], as_index=False).timestamp.min()
+               .sort_values(["payment_method_id", "player_id"]).reset_index(drop=True))
+    pm_ids = used_pm.payment_method_id.unique()
+    pm_type = dict(zip(pm_ids, rng.choice(["debit card", "credit card", "bank transfer", "e-wallet"],
+                                          size=len(pm_ids), p=[0.45, 0.2, 0.25, 0.1])))
+    payment_methods = pd.DataFrame({
+        "payment_method_id": used_pm.payment_method_id,
+        "player_id": used_pm.player_id,
+        "method_type": used_pm.payment_method_id.map(pm_type),
+        "holder_matches_player": [by_id[pid].pm_holder.get(pm, True)
+                                  for pid, pm in zip(used_pm.player_id, used_pm.payment_method_id)],
+        "first_used": used_pm.timestamp.str.slice(0, 10),
+    })
 
     # Linked identifiers: every device / payment method actually used, plus address.
     used = pd.concat([
@@ -584,6 +718,7 @@ def generate(cfg: dict) -> dict[str, pd.DataFrame]:
         "note": "All data is synthetic. No real players, transactions or OLG data.",
     }
     return {"players": players_df, "transactions": tx, "linked_identifiers": linked,
+            "payment_methods": payment_methods,
             "scenario_labels": labels_df, "benign_labels": benign_df, "metadata": meta}
 
 
@@ -596,7 +731,8 @@ def main():
 
     out = generate(cfg)
     SYNTH.mkdir(parents=True, exist_ok=True)
-    for name in ["players", "transactions", "linked_identifiers", "scenario_labels", "benign_labels"]:
+    for name in ["players", "transactions", "linked_identifiers", "payment_methods", "scenario_labels",
+                 "benign_labels"]:
         out[name].to_csv(SYNTH / f"{name}.csv", index=False, lineterminator="\n")
     (SYNTH / "metadata.json").write_text(json.dumps(out["metadata"], indent=2) + "\n", encoding="utf-8")
     m = out["metadata"]

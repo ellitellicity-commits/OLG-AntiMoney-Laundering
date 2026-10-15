@@ -18,7 +18,9 @@ Sports betting only. All data is synthetic.
 - Gradient-boosting model with SHAP-backed reasons. *Built (scikit-learn, out-of-fold).*
 - LLM summary that restates computed evidence only. *Built, with an automatic number check, plus case Q&A and plain-English queue search; free providers only.*
 - Activity timeline and case notes. *Timeline built; case notes are the decision notes.*
-- Compliance indicators: structuring and the $10,000 24-hour rule, plus per-transaction flags and a printable case report. *Built.*
+- Compliance indicators: structuring, the $10,000 24-hour rule, sanctions screening, KYC, PEP, third-party funding and U-turn withdrawals, plus per-transaction flags and a printable case report. *Built.*
+- Confidence ratings with mitigating factors, a watchlist for emerging risk, behaviour groups, an overview dashboard and an audit trail with investigator names. *Built.*
+- Generalisation test on populations the AI never saw, and a data-contract checker for real data. *Built.*
 
 ## How each requirement is demonstrated
 

@@ -6,12 +6,15 @@ Kept free of relative imports so it works both as `from common import ...`
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "data"
+# OLG_DATA_DIR points the whole pipeline at another folder (used by cross_seed.py to build
+# throwaway test populations without touching the demo data).
+DATA = Path(os.environ["OLG_DATA_DIR"]).resolve() if os.environ.get("OLG_DATA_DIR") else ROOT / "data"
 SYNTH = DATA / "synthetic"
 FEATURES = DATA / "features"
 SCORES = DATA / "scores"
@@ -27,6 +30,24 @@ INCOME_MIDPOINT = {
     "<20k": 15_000, "20-40k": 30_000, "40-60k": 50_000,
     "60-80k": 70_000, "80-120k": 100_000, "120k+": 150_000,
 }
+
+# Typical annual income range per declared occupation (illustrative figures for synthetic data).
+# Used to check the declared income band against the occupation (brief: "spend inconsistent with
+# reported occupation or income range"). None = income varies too widely to judge from the title.
+OCCUPATION_INCOME = {
+    "Student": (0, 25_000), "Part-time retail associate": (10_000, 30_000), "Barista": (15_000, 35_000),
+    "Server": (15_000, 40_000), "Warehouse associate": (30_000, 50_000), "Cashier": (20_000, 38_000),
+    "Personal support worker": (30_000, 50_000), "Delivery driver": (28_000, 55_000), "Line cook": (25_000, 45_000),
+    "Administrative assistant": (40_000, 60_000), "Truck driver": (45_000, 80_000), "Retail manager": (45_000, 80_000),
+    "Bookkeeper": (40_000, 65_000), "Machinist": (45_000, 75_000), "Electrician": (55_000, 100_000),
+    "Registered practical nurse": (55_000, 80_000), "Teacher": (55_000, 105_000), "IT support analyst": (50_000, 85_000),
+    "Plumber": (55_000, 100_000), "Software developer": (75_000, 150_000), "Registered nurse": (75_000, 115_000),
+    "Project manager": (75_000, 140_000), "Police officer": (80_000, 125_000), "Civil engineer": (75_000, 130_000),
+    "Physician": (200_000, 500_000), "Lawyer": (100_000, 400_000), "Senior manager": (110_000, 300_000),
+    "Dentist": (150_000, 400_000), "Business owner": None, "Retired": None,
+}
+INCOME_BAND_RANGE = {"<20k": (0, 20_000), "20-40k": (20_000, 40_000), "40-60k": (40_000, 60_000),
+                     "60-80k": (60_000, 80_000), "80-120k": (80_000, 120_000), "120k+": (120_000, 10**9)}
 
 HOME_REGIONS = ["Toronto", "Ottawa", "Hamilton-Niagara", "Southwestern ON", "Eastern ON", "Northern ON"]
 
@@ -78,7 +99,11 @@ TXN_FLAGS = {
     "NEAR_THRESHOLD": "Just under $10,000",
     "THRESHOLD_24H": "$10,000+ within 24 hours",
     "LOW_ODDS_BET": "Low-odds bet",
+    "THIRD_PARTY_PAYMENT": "Card / account in another name",
+    "UTURN_WITHDRAWAL": "Withdrawn to a different method",
+    "QUICK_CASH_OUT": "Withdrawn within 72 h of deposit",
 }
+LOW_ODDS = 1.30  # decimal odds below this are near-certain bets (minimal-risk betting)
 
 # Human labels for model features (Isolation Forest and the supervised model).
 FEATURE_LABEL = {
@@ -97,6 +122,11 @@ FEATURE_LABEL = {
     "new_devices_outside_ontario_30d": "new devices outside Ontario",
     "threshold_24h_events_30d": "$10,000+ 24-hour totals", "near_threshold_deposits_30d": "deposits just under $10,000",
     "split_threshold_events_30d": "split deposits crossing $10,000", "max_deposits_24h_30d": "largest 24-hour deposit total",
+    "low_odds_share_30d": "share of stakes on near-certain bets", "third_party_deposits_30d": "deposits from third-party methods",
+    "uturn_withdrawals_30d": "withdrawals to a different method", "quick_cashouts_30d": "quick cash-outs",
+    "dormant_days_before_30d": "days dormant before this month", "occupation_income_ratio": "declared vs occupation income",
+    "deposit_occupation_ratio": "deposits vs occupation income", "z_cluster_deposits_30d": "deposits vs behaviour peers",
+    "z_cluster_avg_stake_30d": "average stake vs behaviour peers", "kyc_unverified": "identity not verified",
 }
 
 

@@ -136,7 +136,11 @@ Single-page desktop dashboard, minimum width 1280px for the demo. Mobile is not 
 Filter bar, status tag, anomaly-type tag (text, neutral outline), "SYNTHETIC DATA" tag, empty state ("No alerts match these filters"), loading state (skeleton rows), and error state (plain message + retry).
 
 ### 7.7 Stretch components
-Linked-players network view (node-link graph of shared devices/payment methods/addresses), activity timeline, case notes. *Built (bare-bones, for polish):* weekly activity timeline (hand-built SVG), "Ask about this case", "Ask the queue" search, per-transaction flag tags with a flagged-only toggle, and a Case report link.
+Linked-players network view (node-link graph of shared devices/payment methods/addresses), activity timeline, case notes. *Built (functional, ready for visual polish):*
+- Queue and detail split 40 / 60. Filters (incl. confidence), a "Sort by" menu and an "Include watchlist" toggle live in the queue panel; each row shows the confidence under the risk badge.
+- Detail panel tabs: **Overview** (AI case summary, key-facts strip, confidence with mitigating factors, the 3 strongest reasons, link to all), **Evidence** (all reasons, peer chart, behaviour group), **Activity** (weekly timeline, transactions with flag tags and a flagged-only toggle), **Network** (node-link graph, circles filled by band with the score inside, plus the list), **Ask AI**. The action bar stays pinned and holds the decision history.
+- **Overview screen** (top-bar switch): queue at a glance (horizontal bars, no vanity tiles), compliance indicators, emerging-risk flag trends (sparklines, "Rising ×N"), watchlist, AI model card with the cross-seed table, audit trail with CSV download.
+- Investigator name in the top bar (remembered in the browser); decisions are refused without it.
 
 ## 8. Motion
 

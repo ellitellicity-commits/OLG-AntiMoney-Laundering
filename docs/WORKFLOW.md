@@ -101,7 +101,7 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
-**Status:** Done. Score = sum of reason points, capped at 100, so the reason list always explains the score. Adds `CASH_IN_CASH_OUT` (money movement), `ISOLATION_FOREST` (overall pattern), `STRUCTURING` and `LARGE_TRANSACTION_24H` (compliance) and `ML_MODEL` (supervised model from `train_model.py`, with SHAP drivers) reasons. Alerts are players scoring 40+.
+**Status:** Done. The score is built from reason points: within one anomaly type the strongest flag counts in full and the rest at half, and above 70 points the score rises progressively more slowly (soft cap at 99), so strong cases stay ordered; ties break on total points, then the AI model. Reasons now include occupation mismatch, low-odds betting, third-party funding, U-turn withdrawals, rapid cash-outs, dormant reactivation, KYC / sanctions / PEP, behaviour-group deviation, structuring, the 24-hour rule, Isolation Forest and the supervised model. Each alert gets a confidence (High / Medium / Low) with mitigating factors; players below 40 that the AI models find unusual go to `watchlist.json`. Alerts are players scoring 40+.
 
 **Done when:** every alert has at least one reason with evidence values, scores fall in 0–100, bands follow the thresholds in `DESIGN.md`, and no alert has an empty explanation.
 
@@ -127,7 +127,7 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
-**Status:** Done. All checks pass; see `docs/VALIDATION.md`. Band cut-offs kept as drafted.
+**Status:** Done. All checks pass; see `docs/VALIDATION.md`. Also reports score spread, precision by confidence, the watchlist and the cross-seed test (`cross_seed.py`: two new populations scored by the seed-42 model). Band cut-offs kept as drafted.
 
 **Done when:** the report runs in one command, every anomaly type has a recall number, the combined score beats rules-only on precision@50, and weights/thresholds chosen here are copied back into `detect.py` and `DESIGN.md`.
 
@@ -158,7 +158,7 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
-**Status:** Done. Also `GET /meta` (filter options), `GET /players/{id}/timeline` (weekly activity), `GET /stats`, `GET /model` (model card), `GET /alerts/{id}/report` (printable case report), `?min_score=` on `/alerts`, per-transaction `flags`, and the AI endpoints `GET /ai/status`, `GET /alerts/{id}/summary`, `POST /alerts/{id}/ask`, `POST /ai/search`. The dashboard is served at `/app/`. Decisions stored in `data/decisions.json`; Jube not integrated.
+**Status:** Done. Also `GET /meta` (filter options), `GET /watchlist`, `GET /audit` and `GET /audit.csv` (decisions with investigator names, which are now required), `GET /players/{id}/timeline` (weekly activity), `GET /stats` (incl. confidence, compliance counts and flag trends), `GET /model` (model card), `?confidence=`, `?include_watchlist=` and `sort=ai` on `/alerts`, `GET /alerts/{id}/report` (printable case report), `?min_score=` on `/alerts`, per-transaction `flags`, and the AI endpoints `GET /ai/status`, `GET /alerts/{id}/summary`, `POST /alerts/{id}/ask`, `POST /ai/search`. The dashboard is served at `/app/`. Decisions stored in `data/decisions.json`; Jube not integrated.
 
 **Done when:** `uvicorn backend.app.main:app` starts, every endpoint returns valid JSON when tested with `curl`, and the response shapes are documented in `/docs`.
 
@@ -176,7 +176,7 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
-**Status:** Done. Chart: hand-built SVG. Keyboard-only flow tested in Chrome (open top alert → reasons, peer chart, action → record decision). Falls back to `frontend/mock/alerts.json` when the API is down.
+**Status:** Done. Queue with filters (incl. confidence), sort menu and watchlist toggle; tabbed detail panel (Overview: AI summary, key facts, confidence, top reasons; Evidence; Activity; Network graph; Ask AI); Overview screen (queue at a glance, compliance indicators, emerging-risk trends, watchlist, AI model incl. cross-seed results, audit trail). Charts are hand-built SVG. Tested in Chrome. Falls back to `frontend/mock/alerts.json` when the API is down.
 
 **Done when:** an investigator can, using only the keyboard, open the highest-risk alert, see score + reasons + peer chart + recommended action on one screen, and record a decision. Risk is never shown by colour alone, and "SYNTHETIC DATA" is visible.
 
@@ -196,7 +196,7 @@ Only start after steps 1–6 work end to end. Suggested order:
 
 **Owner:** TBD
 
-**Status:** Network analysis done (`LINKED_PLAYERS` reason, `/players/{id}/network`, linked-players panel). Automated recommendations done for reason combinations, each with a one-line rationale. ML + SHAP done (`backend/pipeline/train_model.py`, step 2b): out-of-fold scoring, so no player is scored by a model that saw them; precision@50 was already 100%, so the measured gain is recall (89% → 95%; peer deviation 45% → 70%) with no extra false positives. LLM summary done (`backend/app/ai.py`) plus case Q&A and plain-English queue search: every number in a summary is checked automatically against the case file (instead of a 10-alert spot check), with a retry and then a template fallback. Also added: structuring and 24-hour-rule compliance indicators, per-transaction flags, a weekly timeline and a printable case report. Jube not started.
+**Status:** Network analysis done (`LINKED_PLAYERS` reason, `/players/{id}/network`, linked-players panel). Automated recommendations done for reason combinations, each with a one-line rationale. ML + SHAP done (`backend/pipeline/train_model.py`, step 2b): out-of-fold scoring, so no player is scored by a model that saw them; precision@50 was already 100%, so the measured gain is recall (89% → 95%; peer deviation 45% → 70%) with no extra false positives. LLM summary done (`backend/app/ai.py`) plus case Q&A and plain-English queue search: every number in a summary is checked automatically against the case file (instead of a 10-alert spot check), with a retry and then a template fallback. Also added: compliance indicators (structuring, 24-hour rule, sanctions, KYC, PEP, third-party funding, U-turns), behaviour groups, a watchlist, confidence ratings, per-transaction flags, a weekly timeline, a network graph, an overview screen, a printable case report and a data-contract checker (`check_data.py`, `docs/DATA_INTEGRATION.md`). Jube not started.
 
 ---
 

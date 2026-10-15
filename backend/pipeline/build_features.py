@@ -47,6 +47,18 @@ Features (one row per player in data/features/player_features.parquet):
     near_threshold_deposits_30d    deposits between $8,000 and $9,999.99
     max_deposits_24h_30d           largest 24-hour deposit total in the current window ($)
     threshold_24h_example          largest such episode, as "2026-09-12: 3 deposits totalling $14,350.00 ..."
+    low_odds_share_30d             share of stakes on near-certain bets (decimal odds < 1.30): minimal-risk betting
+    third_party_deposits_30d       deposits from a payment method not in the player's name (count; _amount_30d in $)
+    uturn_withdrawals_30d          withdrawals to a method never used to deposit (count; _amount_30d in $)
+    quick_cashouts_30d             withdrawals of half or more of a deposit within 72 hours of it
+    dormant_days_before_30d        days with no activity before the player's first transaction this month
+    kyc_unverified, pep, sanctions_hit  compliance profile flags (identity not verified, politically exposed,
+                                   sanctions screening potential match)
+    occupation_income_estimate     typical annual income for the declared occupation (upper end; NaN if too varied)
+    occupation_income_ratio        declared income band's lower bound / occupation_income_estimate (> 1.2 = implausible)
+    deposit_occupation_ratio       deposits_30d / (occupation_income_estimate / 12)
+    behaviour_cluster(_name, _size)  k-means group of players who bet alike in the baseline period
+    z_cluster_<metric>             robust z vs that behaviour group, for deposits and average stake
     last_activity                  timestamp of the player's latest transaction
     peer_group, peer_group_level, peer_group_size
     z_<metric>                     robust peer z-score on a symlog scale, for PEER_Z_FEATURES
@@ -65,6 +77,10 @@ Transaction flags (data/features/transaction_flags.parquet): txn_id, player_id a
 the current window, a deposit 5x the player's median, just under / reaching $10,000 within
 24 hours, and low-odds bets (decimal odds under 1.30, a minimal-risk laundering pattern).
 
+Behaviour groups: k-means (k = 6) on how players bet in the 90-day baseline (frequency,
+stake, deposits, night share). It complements the demographic peer group: "far above
+players who usually bet like them". Players with no baseline betting form their own group.
+
 Usage:  python backend/pipeline/build_features.py
 """
 from __future__ import annotations
@@ -73,8 +89,13 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
-from common import (FEATURES, INCOME_MIDPOINT, JURISDICTION, NEAR_THRESHOLD, REPORTING_THRESHOLD, SYNTH, TXN_FLAGS,
-                    load_metadata, min_travel_hours, symlog)
+from sklearn.cluster import KMeans
+
+from common import (FEATURES, INCOME_BAND_RANGE, INCOME_MIDPOINT, JURISDICTION, LOW_ODDS, NEAR_THRESHOLD,
+                    OCCUPATION_INCOME, REPORTING_THRESHOLD, SYNTH, TXN_FLAGS, load_metadata, min_travel_hours, symlog)
+
+CLUSTERS = 6
+CLUSTER_FEATURES = ["bets_per_day_base", "avg_stake_base", "deposits_base_30d", "night_share_base"]
 
 MIN_PEER_GROUP = 30
 PEER_Z_FEATURES = ["deposits_30d", "avg_stake_30d", "bets_per_day_30d", "net_loss_30d"]
@@ -183,7 +204,7 @@ def compliance_features(dep: pd.DataFrame, cur_start, index: pd.Index) -> pd.Dat
     return out
 
 
-def transaction_flags(tx: pd.DataFrame, dep: pd.DataFrame, cur_start) -> pd.DataFrame:
+def transaction_flags(tx: pd.DataFrame, dep: pd.DataFrame, cur_start, pms: pd.DataFrame) -> pd.DataFrame:
     """Per-transaction flags (TXN_FLAGS codes) over the full period; flagged rows only."""
     t = tx.sort_values(["player_id", "timestamp"], kind="stable").copy()
     t["jur"] = t.ip_region.map(JURISDICTION)
@@ -200,7 +221,13 @@ def transaction_flags(tx: pd.DataFrame, dep: pd.DataFrame, cur_start) -> pd.Data
     masks["LARGE_DEPOSIT"] = is_dep & (t.amount_cad >= np.maximum(500, 5 * t.player_id.map(median_dep)))
     masks["NEAR_THRESHOLD"] = is_dep & (t.amount_cad >= NEAR_THRESHOLD) & (t.amount_cad < REPORTING_THRESHOLD)
     masks["THRESHOLD_24H"] = t.index.isin(dep.index[dep.sum_24h >= REPORTING_THRESHOLD])
-    masks["LOW_ODDS_BET"] = (t.type == "bet") & (t.odds < 1.30) & (t.amount_cad >= 50)
+    masks["LOW_ODDS_BET"] = (t.type == "bet") & (t.odds < LOW_ODDS) & (t.amount_cad >= 200)
+    third = set(zip(pms.player_id[~pms.holder_matches_player], pms.payment_method_id[~pms.holder_matches_player]))
+    masks["THIRD_PARTY_PAYMENT"] = is_dep & pd.Series([(a, b) in third for a, b in zip(t.player_id, t.payment_method_id)],
+                                                      index=t.index)
+    src = withdrawal_sources(t[is_dep], t[t.type == "withdrawal"])
+    masks["UTURN_WITHDRAWAL"] = t.index.isin(src.loc[src.uturn, "index"])
+    masks["QUICK_CASH_OUT"] = t.index.isin(src.loc[src.quick, "index"])
 
     m = pd.DataFrame({code: np.asarray(masks[code], dtype=bool) for code in TXN_FLAGS}, index=t.index)
     flagged = m[m.any(axis=1)]
@@ -210,6 +237,108 @@ def transaction_flags(tx: pd.DataFrame, dep: pd.DataFrame, cur_start) -> pd.Data
         "player_id": t.loc[flagged.index, "player_id"].values,
         "flags": ["|".join(codes[row]) for row in flagged.to_numpy()],
     })
+
+
+MIN_FLOW_AMOUNT = 300  # smaller withdrawals are ordinary winnings, not money movement
+
+
+def withdrawal_sources(dep: pd.DataFrame, wd: pd.DataFrame) -> pd.DataFrame:
+    """Each withdrawal joined to the latest deposit before it (the money's likely source).
+
+    uturn: the money goes out to a different payment method than it came in on, within 7 days.
+    quick: half or more of that deposit is withdrawn within 72 hours.
+    Both only count withdrawals of MIN_FLOW_AMOUNT or more. Keeps the withdrawal's row label in `index`.
+    """
+    d = dep.sort_values("timestamp")[["player_id", "timestamp", "amount_cad", "payment_method_id"]].rename(
+        columns={"timestamp": "dep_ts", "amount_cad": "dep_amt", "payment_method_id": "dep_pm"})
+    w = wd.sort_values("timestamp")[["player_id", "timestamp", "amount_cad", "payment_method_id"]].reset_index()
+    m = pd.merge_asof(w, d, left_on="timestamp", right_on="dep_ts", by="player_id", direction="backward")
+    gap = m.timestamp - m.dep_ts
+    big = m.amount_cad >= MIN_FLOW_AMOUNT
+    m["uturn"] = big & m.dep_pm.notna() & (m.payment_method_id != m.dep_pm) & (gap <= pd.Timedelta(days=7))
+    m["quick"] = big & (gap <= pd.Timedelta(hours=72)) & (m.amount_cad >= 0.5 * m.dep_amt)
+    return m
+
+
+def money_flow_features(tx: pd.DataFrame, pms: pd.DataFrame, cur_start, index: pd.Index) -> pd.DataFrame:
+    """Third-party funding, U-turn withdrawals, quick cash-outs, low-odds betting and dormancy."""
+    third = set(zip(pms.player_id[~pms.holder_matches_player], pms.payment_method_id[~pms.holder_matches_player]))
+    dep = tx[tx.type == "deposit"]
+    wd = tx[tx.type == "withdrawal"]
+    cur_dep, cur_wd = dep[dep.timestamp >= cur_start], wd[wd.timestamp >= cur_start]
+    is_third = pd.Series([(a, b) in third for a, b in zip(cur_dep.player_id, cur_dep.payment_method_id)],
+                         index=cur_dep.index, dtype=bool)
+    m = withdrawal_sources(dep, cur_wd)
+    uturn = m[m.uturn]
+    quick = m[m.quick]
+    bets = tx[(tx.type == "bet") & (tx.timestamp >= cur_start)]
+    low = bets[bets.odds < LOW_ODDS].groupby("player_id").amount_cad.sum()
+    turnover = bets.groupby("player_id").amount_cad.sum()
+    first_cur = tx[tx.timestamp >= cur_start].groupby("player_id").timestamp.min()
+    last_before = tx[tx.timestamp < cur_start].groupby("player_id").timestamp.max()
+    data_start = tx.timestamp.min()
+    gap = (first_cur - last_before.reindex(first_cur.index).fillna(data_start)).dt.days
+    out = pd.DataFrame({
+        "third_party_deposits_30d": cur_dep[is_third].groupby("player_id").size(),
+        "third_party_deposit_amount_30d": cur_dep[is_third].groupby("player_id").amount_cad.sum(),
+        "uturn_withdrawals_30d": uturn.groupby("player_id").size(),
+        "uturn_withdrawal_amount_30d": uturn.groupby("player_id").amount_cad.sum(),
+        "quick_cashouts_30d": quick.groupby("player_id").size(),
+        "low_odds_share_30d": (low / turnover).reindex(turnover.index),
+        "dormant_days_before_30d": gap,
+    }, index=index)
+    return out.fillna(0)
+
+
+def occupation_features(f: pd.DataFrame) -> pd.DataFrame:
+    """Is the declared income plausible for the declared occupation, and are deposits affordable on it?"""
+    occ_hi = f.occupation.map(lambda o: (OCCUPATION_INCOME.get(o) or (np.nan, np.nan))[1]).astype(float)
+    band_lo = f.income_band.map(lambda b: INCOME_BAND_RANGE[b][0]).astype(float)
+    return pd.DataFrame({
+        "occupation_income_estimate": occ_hi,
+        "occupation_income_ratio": (band_lo / occ_hi).fillna(0.0),
+        "deposit_occupation_ratio": (f.deposits_30d / (occ_hi / 12)).fillna(0.0),
+    }, index=f.index)
+
+
+def behaviour_clusters(f: pd.DataFrame) -> pd.DataFrame:
+    """Group players by how they bet in the baseline period and score current play against the group."""
+    active = f.bets_per_day_base > 0
+    x = pd.DataFrame({c: symlog(f.loc[active, c]) for c in CLUSTER_FEATURES}, index=f.index[active])
+    mu, sd = x.mean(), x.std(ddof=0).replace(0, 1)
+    km = KMeans(n_clusters=CLUSTERS, n_init=10, random_state=42).fit((x - mu) / sd)
+    cluster = pd.Series(-1, index=f.index)
+    cluster[active] = km.labels_
+    centres = pd.DataFrame(km.cluster_centers_, columns=CLUSTER_FEATURES)  # standardised units
+
+    def name(c: pd.Series) -> str:
+        freq = "frequent" if c.bets_per_day_base > 0.5 else "occasional" if c.bets_per_day_base < -0.5 else "regular"
+        stake = "high-stake" if c.avg_stake_base > 0.5 else "low-stake" if c.avg_stake_base < -0.5 else "mid-stake"
+        night = ", late-night" if c.night_share_base > 1 else ""
+        return f"{freq}, {stake}{night} bettors"
+    names = {k: name(c) for k, c in centres.iterrows()}
+    seen: dict[str, int] = {}
+    for k in sorted(names):  # keep names unique: "regular, mid-stake bettors (2)"
+        seen[names[k]] = seen.get(names[k], 0) + 1
+        if seen[names[k]] > 1:
+            names[k] = f"{names[k]} ({seen[names[k]]})"
+    names[-1] = "no betting in the baseline period"
+    out = pd.DataFrame({"behaviour_cluster": cluster, "behaviour_cluster_name": cluster.map(names)}, index=f.index)
+    out["behaviour_cluster_size"] = cluster.map(cluster.value_counts())
+    for feat in ["deposits_30d", "avg_stake_30d"]:
+        z = pd.Series(0.0, index=f.index)
+        med = pd.Series(0.0, index=f.index)
+        for k, idx in cluster.groupby(cluster).groups.items():
+            v = f.loc[idx, feat].astype(float)
+            ref = v[v > 0] if (v > 0).sum() >= 10 else v
+            sv = symlog(ref)
+            q1, q3 = np.quantile(sv, [0.25, 0.75])
+            scale = max((q3 - q1) / 1.349, 0.5)
+            z[idx] = (symlog(v) - np.median(sv)) / scale
+            med[idx] = float(ref.median())
+        out[f"z_cluster_{feat}"] = z.round(3)
+        out[f"cluster_median_{feat}"] = med.round(2)
+    return out
 
 
 def network_features(linked: pd.DataFrame, index: pd.Index) -> pd.DataFrame:
@@ -281,6 +410,7 @@ def build() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     players = pd.read_csv(SYNTH / "players.csv")
     tx = pd.read_csv(SYNTH / "transactions.csv", parse_dates=["timestamp"], dtype={"txn_id": str})
     linked = pd.read_csv(SYNTH / "linked_identifiers.csv")
+    pms = pd.read_csv(SYNTH / "payment_methods.csv")
 
     end = pd.Timestamp(meta["end_date"]) + pd.Timedelta(days=1)
     cur_start, base_start = end - pd.Timedelta(days=30), end - pd.Timedelta(days=120)
@@ -326,12 +456,18 @@ def build() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     dep = deposit_windows(tx)
     f = f.join(compliance_features(dep, cur_start, idx))
-    flags = transaction_flags(tx, dep, cur_start)
+    flags = transaction_flags(tx, dep, cur_start, pms)
+    f = f.join(money_flow_features(tx, pms, cur_start, idx))
+    f = f.join(occupation_features(f))
+    f["kyc_unverified"] = (f.kyc_status != "verified").astype(int)
+    f["pep"] = f.pep.astype(int)
+    f["sanctions_hit"] = (f.sanctions_screening != "clear").astype(int)
 
     f = f.join(network_features(linked, idx))
     f["last_activity"] = tx.groupby("player_id").timestamp.max()
 
     f = f.join(assign_peer_groups(players.set_index("player_id")))
+    f = f.join(behaviour_clusters(f))
     stats = peer_stats(f)
     sym = stats.set_index(["peer_group", "feature"])
     for feat in PEER_Z_FEATURES:
@@ -341,6 +477,8 @@ def build() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     int_cols = ["deposit_count_30d", "bets_30d", "distinct_ip_regions_30d", "out_of_province_txns_30d",
                 "threshold_24h_events_30d", "split_threshold_events_30d", "near_threshold_deposits_30d",
+                "third_party_deposits_30d", "uturn_withdrawals_30d", "quick_cashouts_30d", "dormant_days_before_30d",
+                "behaviour_cluster", "behaviour_cluster_size",
                 "impossible_travel_count_30d", "new_devices_30d", "new_devices_outside_ontario_30d",
                 "new_payment_methods_30d", "shared_identifier_count", "linked_player_count",
                 "network_cluster_size", "peer_group_size"]

@@ -216,6 +216,50 @@ hackathon judges love AI so using AI in this system would be massive, but free v
 - The long provenance line squeezed the "Case summary" heading → moved under the summary text.
 - The UI test wrote `data/decisions.json` and cached a fake-model summary in `data/ai_cache.json` → both deleted.
 
+### 7.2 — Close every gap against the challenge brief   (date: 2026-10-15 · author: Sidneneyyy · tool/model: Claude Code, claude-opus-5-5)
+
+**Context to paste:**
+The challenge brief PDF (attached in the chat, not committed). Earlier in the session the agent had reviewed the
+project against every point of the brief and listed partial items and AML gaps; it also noticed that 165 of 241
+alerts scored exactly 100, so the queue could not tell them apart.
+
+**Exact prompt:**
+```
+"I also found a real weakness while checking: 165 of the 241 alerts score exactly 100. The score is capped, so
+it can't tell the top two-thirds of the queue apart. Right now they're ordered by recency, not risk. That
+directly weakens requirement 03, prioritization." i want you to do something about that.
+
+"Gaps a sharp AML judge could spot:" do we cover all that?
+
+work on every ⚠️ so that all of them can become a ✅, use what they like, remove or dont use what they dont
+want, and add your fixes too.
+```
+
+**Expected output:**
+- Scoring: same-type overlap at half weight, soft cap above 70, ties broken by points then AI probability;
+  confidence (High / Medium / Low) with mitigating factors; a watchlist for unusual players below the alert line.
+- AML: occupation-vs-income check, low-odds betting, third-party funding, U-turn withdrawals, rapid cash-outs,
+  dormant reactivation, KYC / sanctions / PEP; new scenarios and benign look-alikes in the generator.
+- AI: behaviour groups (k-means), the supervised model in ranking and confidence, `cross_seed.py`.
+- `check_data.py` + `docs/DATA_INTEGRATION.md`; API: watchlist, audit trail (names required), trends, behaviour
+  peers; dashboard: tabbed detail, overview screen, network graph, investigator name.
+
+**How we test it:**
+- Full pipeline twice from scratch → identical hashes; all validation checks pass (see `docs/VALIDATION.md`).
+- Cross-seed: two never-seen populations scored by the seed-42 model, with recall and false positives close to
+  seed 42's.
+- Every new endpoint called, including a decision without a name (→ 422).
+- Headless Chrome: queue filters and sorts, every detail tab, network-node click, watchlist from the overview,
+  decision refused without a name then recorded with one; no console errors. Test decisions removed afterwards.
+
+**What went wrong / how we fixed it:**
+- U-turn detection first found nothing ("method never used to deposit" misses mules who used their own card
+  before) → compare with the method of the deposit the withdrawal followed.
+- Quick cash-outs flagged 127 normal players → minimum $300 and require little betting.
+- The first soft cap (scale 45) still put 76 alerts at 99 → scale 90: no 99s, largest tie 30, broken by points.
+- A structuring reason quoted a single $15,200 deposit as its example → only quote split-deposit episodes.
+- Network graph labels overlapped and trend changes read "+6050%" → one shared label, and "×N" / "New this month".
+
 ---
 
 ## Step 8 — Demo
