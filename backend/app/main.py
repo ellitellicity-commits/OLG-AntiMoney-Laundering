@@ -28,8 +28,9 @@ from fastapi.staticfiles import StaticFiles
 from backend.integrations.jube_router import make_jube_router
 from backend.pipeline.common import BANDS, DATA, FEATURES, MODELS, ROOT, SCORES, SYNTH, TXN_FLAGS, load_metadata
 
-from . import ai, report
-from .schemas import (AISummary, AlertDetail, AlertList, AlertSummary, AskIn, AskOut, DecisionIn, DecisionOut, Meta,
+from . import ai, chat, report
+from .schemas import (AISummary, AlertDetail, AlertList, AlertSummary, AskIn, AskOut, ChatIn, ChatOut, DecisionIn,
+                      DecisionOut, Meta,
                       Network, PeerComparison, PlayerDetail, SearchIn, SearchOut, Timeline)
 
 DECISIONS_FILE = DATA / "decisions.json"
@@ -534,7 +535,10 @@ def ai_search(body: SearchIn):
 
     def run(f: dict) -> dict:
         return list_alerts(band=f.get("band"), team=f.get("team"), type=f.get("type"), status=f.get("status"),
-                           q=f.get("q"), min_score=f.get("min_score"), sort=f.get("sort", "-score"), limit=5000)
+                           q=f.get("q"), min_score=f.get("min_score"), sort=f.get("sort", "-score"), limit=5000,
+                           # Called directly, FastAPI's Query() defaults are not applied: pass these explicitly,
+                           # or the truthy Query objects filter out every alert.
+                           confidence=None, include_watchlist=False)
     result = run(parsed["filters"])
     if parsed["source"] == "llm" and result["total"] == 0 and parsed["filters"]:
         # The model's reading matched nothing: show everything rather than an empty queue, and say so.
@@ -542,6 +546,51 @@ def ai_search(body: SearchIn):
                   "alerts, so all alerts are shown)"}
         result = run({})
     return {"query": body.query, **parsed, **result}
+
+
+# --- Chat panel (docs/CHAT_CONTRACT.md) -------------------------------------------------------
+
+def _chat_rows(f: dict, sort: str, include_watchlist: bool) -> list[dict]:
+    # Every list_alerts argument is passed explicitly: called directly, FastAPI's Query() defaults are not applied.
+    try:
+        return list_alerts(band=f.get("band"), team=f.get("team"), type=f.get("type"), status=f.get("status"),
+                           q=f.get("q"), min_score=f.get("min_score"), confidence=f.get("confidence"),
+                           sort=sort, include_watchlist=include_watchlist, limit=5000)["alerts"]
+    except HTTPException:  # unknown sort key from the client: fall back to the default order
+        return list_alerts(band=f.get("band"), team=f.get("team"), type=f.get("type"), status=f.get("status"),
+                           q=f.get("q"), min_score=f.get("min_score"), confidence=f.get("confidence"),
+                           sort="-score", include_watchlist=include_watchlist, limit=5000)["alerts"]
+
+
+def _chat_extra(pid: str) -> dict:
+    """Notable profile facts for a compact row; only what is unusual, to keep the evidence short."""
+    if pid not in store.features.index:
+        return {}
+    f = store.features.loc[pid]
+    out = {}
+    if clean(f.get("network_cluster_size")) and int(f["network_cluster_size"]) > 1:
+        out["accounts_in_linked_ring"] = int(f["network_cluster_size"])
+    if bool(f.get("sanctions_hit")):
+        out["sanctions_screening_match"] = True
+    if bool(f.get("pep")):
+        out["pep"] = True
+    if str(f.get("kyc_status", "verified")) != "verified":
+        out["identity_status"] = str(f["kyc_status"])
+    return out
+
+
+def chat_data() -> chat.ChatData:
+    return chat.ChatData(
+        meta=meta(), rows=_chat_rows, alert=lambda i: store.alert_by_id.get(i),
+        alert_for_player=lambda p: store.alert_by_player.get(p), summary=summary,
+        case_file=case_file, stats=stats, row_extra=_chat_extra)
+
+
+@app.post("/chat", response_model=ChatOut)
+def chat_endpoint(body: ChatIn):
+    """The investigation assistant: answers about the queue, the overview or the open alert, from computed
+    evidence only. Never asks back, never records a decision; action buttons come from a fixed whitelist."""
+    return chat.answer(chat_data(), body)
 
 
 @app.get("/alerts/{alert_id}/report", response_class=HTMLResponse)
