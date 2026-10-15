@@ -195,8 +195,8 @@ Known limits (not fixed; for the team):
 
 ## 8. Not built in this pass (need JS changes; for the team)
 
-- **Night shift:** tokens are planned in FRONTEND_OUTLINE.md §4.1. It is blocked until the chart and network colours in `app.js` use CSS variables.
-- **Network graph circles and Team-overview band bars** in the four-band palette (`BAND_FILL` and SVG hex values in `app.js`).
+- ~~**Night shift**~~: built on `frontend-chat` as a light/dark theme; see §10.
+- **Network graph circles and Team-overview band bars** in the four-band palette. *Update:* they are now CSS tokens (`--net-*`, `--chart-*`) with the previous Day values, so this is a token change only.
 - **Overview tab reorder** (strongest reasons before key facts). This was skipped on purpose because CSS `order` would split visual order from keyboard and screen-reader order.
 - **The rest:** see the "needs JS change" list in [PROMPTS.md](PROMPTS.md) under "Frontend restyle", and FRONTEND_OUTLINE.md §6 ranks 11–19.
 
@@ -262,3 +262,14 @@ The work area shows one view at a time. **Mode 1:** the view switch "Alert queue
 - **`aria-pressed` vs `aria-current`** on the view switch (kept as before).
 - **The view is not restored after a refresh** (the conversation is).
 - **Existing case-file text measure** (browser detector): `.reason-detail` runs to about 113 characters at 1440 and the case summary to about 97 (its `72ch` cap counts "0" widths). Outside the chat; left for the restyle owner.
+
+## 10. Light / dark theme (branch `frontend-chat`)
+
+> Built 2026-10-15. Implements the "Night shift" plan in FRONTEND_OUTLINE.md §4.1 and §4.5.
+
+- **How it switches:** with no saved choice the page follows the system setting (`prefers-color-scheme`). The masthead button (sun/moon icon + "Light"/"Dark", `aria-pressed`, screen readers hear "Dark theme: …") saves an explicit choice in localStorage (`olg.theme`), which wins over the system. A tiny inline script in `<head>` applies a saved choice before first paint, so there is no flash. Storage failures are caught; the theme then simply follows the system.
+- **Tokens:** dark overrides live in `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) }` and `:root[data-theme="dark"]`, using the §4.1 Night values (paper `#10151F`, card `#18202E`, ink `#ECE6D8`, ink-2 `#A9B1C0`, accent `#8EB0F2` with dark text on it, rule-strong `#6B7890`) and the §4.2 Night band colours. Critical keeps its distinct treatment (solid inverted pink `#F4A3B0` with dark text, double frame, fourth bar).
+- **Charts:** the hard-coded hex values in `app.js` (peer chart, timeline, sparkline, network graph) were replaced by `style="fill:var(--…)"` tokens (`--chart-ink`, `--chart-mid`, `--chart-faint`, `--chart-band`, `--chart-marker`, `--chart-shade`, `--net-<band>` and `--net-<band>-ink`). Day values are the previous hex values; only the white fills (baseline marker, network label plate) now use `--card`. The network focus ring uses `!important` because inline token styles outrank stylesheet rules.
+- **Also fixed:** with an empty conversation the composer now stays at the bottom of the assistant panel (`.chat-empty { flex: 1 }`).
+- **Checked:** headless Edge, 11 theme checks (system default, toggle, persistence, explicit light over system dark, chart and timeline colours following the theme, network tokens), plus the full suites in light (regression 48/48, chat 66/66, live 3/3, mock 6/6). Screenshots of the queue, alert, evidence, activity, network, overview and phone chat in dark.
+- **Not verified:** a full contrast audit of every dark pair (the token values come from the §4.1/§4.2 table, which lists their ratios), real devices, Windows high-contrast mode.

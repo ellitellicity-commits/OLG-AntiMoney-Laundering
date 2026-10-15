@@ -48,6 +48,14 @@
   --chat-bar-h: 48px;
   --ease-out-expo: cubic-bezier(.16, 1, .3, 1);
 
+  /* Charts and the network graph (app.js reads these through style="fill:var(--…)") */
+  --chart-ink: #1A1D21;  --chart-mid: #545A62;  --chart-faint: #A9A69D;  --chart-band: #D5D3CC;
+  --chart-marker: #1F4E79;  --chart-shade: #EDECE7;
+  --net-low: #E4E6E9;      --net-low-ink: #1A1D21;
+  --net-medium: #E8B84A;   --net-medium-ink: #1A1D21;
+  --net-high: #B4500F;     --net-high-ink: #FFFFFF;
+  --net-critical: #8E1B1B; --net-critical-ink: #FFFFFF;
+
   /* Aliases for the previous token names */
   --surface: var(--card);
   --surface-sunk: var(--paper-2);
@@ -58,6 +66,52 @@
   --risk-critical-bg: var(--risk-critical);      --risk-critical-ink: var(--risk-critical-on);
 
   color-scheme: light;
+}
+
+/* Dark theme: the system setting, unless the toggle chose light; or the toggle chose dark. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --paper: #10151F;  --paper-2: #0C1018;  --card: #18202E;
+  --rule: #2A3446;   --rule-strong: #6B7890;
+  --ink: #ECE6D8;    --ink-2: #A9B1C0;
+  --navy: #0A0E16;   --navy-ink: #ECE6D8;  --navy-ink-2: #A9B1C0;
+  --accent: #8EB0F2; --accent-ink: #10151F; --accent-soft: #1E2A44; --accent-deep: #B4CBF6; --focus: #8EB0F2;
+  --evidence: #7FC9AE;
+  --warn-ink: #ECE6D8; --warn-bg: #2F2A1C;
+  --risk-low: #5CC3B5;      --risk-low-soft: #143A36;      --risk-low-text: #5CC3B5;
+  --risk-medium: #E4B04F;   --risk-medium-soft: #3A2F14;   --risk-medium-text: #E4B04F;
+  --risk-high: #F08A74;     --risk-high-soft: #40241F;     --risk-high-text: #F08A74;
+  --risk-critical: #F4A3B0; --risk-critical-soft: #45202A; --risk-critical-text: #F4A3B0;
+  --risk-critical-on: #10151F;
+  --chart-ink: #ECE6D8;  --chart-mid: #A9B1C0;  --chart-faint: #6B7890;  --chart-band: #2A3446;
+  --chart-marker: #8EB0F2;  --chart-shade: #222B3B;
+  --net-low: #2A3446;      --net-low-ink: #ECE6D8;
+  --net-medium: #E4B04F;   --net-medium-ink: #10151F;
+  --net-high: #F08A74;     --net-high-ink: #10151F;
+  --net-critical: #F4A3B0; --net-critical-ink: #10151F;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #10151F;  --paper-2: #0C1018;  --card: #18202E;
+  --rule: #2A3446;   --rule-strong: #6B7890;
+  --ink: #ECE6D8;    --ink-2: #A9B1C0;
+  --navy: #0A0E16;   --navy-ink: #ECE6D8;  --navy-ink-2: #A9B1C0;
+  --accent: #8EB0F2; --accent-ink: #10151F; --accent-soft: #1E2A44; --accent-deep: #B4CBF6; --focus: #8EB0F2;
+  --evidence: #7FC9AE;
+  --warn-ink: #ECE6D8; --warn-bg: #2F2A1C;
+  --risk-low: #5CC3B5;      --risk-low-soft: #143A36;      --risk-low-text: #5CC3B5;
+  --risk-medium: #E4B04F;   --risk-medium-soft: #3A2F14;   --risk-medium-text: #E4B04F;
+  --risk-high: #F08A74;     --risk-high-soft: #40241F;     --risk-high-text: #F08A74;
+  --risk-critical: #F4A3B0; --risk-critical-soft: #45202A; --risk-critical-text: #F4A3B0;
+  --risk-critical-on: #10151F;
+  --chart-ink: #ECE6D8;  --chart-mid: #A9B1C0;  --chart-faint: #6B7890;  --chart-band: #2A3446;
+  --chart-marker: #8EB0F2;  --chart-shade: #222B3B;
+  --net-low: #2A3446;      --net-low-ink: #ECE6D8;
+  --net-medium: #E4B04F;   --net-medium-ink: #10151F;
+  --net-high: #F08A74;     --net-high-ink: #10151F;
+  --net-critical: #F4A3B0; --net-critical-ink: #10151F;
 }
 
 * { box-sizing: border-box; }
@@ -138,6 +192,17 @@ a { color: var(--accent); text-underline-offset: 3px; }
 .tag-ai[data-on="false"] { border-style: dashed; }
 .topbar .tag-ai[data-on="false"] { color: var(--navy-ink-2); }
 
+
+.theme-toggle {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 var(--s-3); cursor: pointer;
+  font: 500 13px/16px var(--sans); color: var(--navy-ink); background: transparent;
+  border: 1px solid var(--navy-ink-2); border-radius: var(--radius);
+  transition: background-color var(--ease);
+}
+.theme-toggle:hover { background: color-mix(in srgb, var(--navy-ink) 12%, transparent); }
+.theme-toggle .ico-sun, .theme-toggle[aria-pressed="true"] .ico-moon { display: none; }
+.theme-toggle[aria-pressed="true"] .ico-sun { display: block; }
+.ico-sun circle { fill: none; }
 
 .investigator {
   display: flex; align-items: center; gap: var(--s-2);
@@ -552,7 +617,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .network-svg .node.clickable { cursor: pointer; }
 .network-svg .node.clickable:hover circle { stroke-width: 3; }
 .network-svg .node:focus { outline: none; }
-.network-svg .node:focus-visible circle { stroke: var(--focus); stroke-width: 4; }
+.network-svg .node:focus-visible circle { stroke: var(--focus) !important; stroke-width: 4; }  /* beats the inline token style */
 .linked { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: flex; flex-direction: column; }
 .linked li {
   display: flex; align-items: center; gap: var(--s-2) var(--s-3); flex-wrap: wrap;
@@ -684,7 +749,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 }
 .chat-head h2 { flex: 1; font-size: 17px; line-height: 22px; }
 
-.chat-empty { padding: var(--s-5) var(--s-4); color: var(--ink-2); font-size: 13px; line-height: 19px; }
+.chat-empty { flex: 1; padding: var(--s-5) var(--s-4); color: var(--ink-2); font-size: 13px; line-height: 19px; }
 .chat-empty p { margin: 0 0 var(--s-2); max-width: 44ch; }
 .chat-empty .chat-empty-title { font: 600 16px/22px var(--serif); color: var(--ink); letter-spacing: -0.01em; }
 .chat-stub-note { padding-top: var(--s-2); border-top: 1px solid var(--rule); }
