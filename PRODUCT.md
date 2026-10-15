@@ -76,7 +76,7 @@ Most monitoring tools say *that* an alert fired. This one says **why**, in conte
 - *Alert*: one flagged player with one risk score.
 - *Reason*: one triggered signal with its evidence values.
 - *Peer group*: players with a similar profile (definition draft in `docs/WORKFLOW.md`).
-- *Risk band*: Low / Medium / High / Critical.
+- *Risk band*: Low (0–39) / Medium (40–69) / High (70–100). Three bands, set by the dashboard brief; the cut-offs are still a draft until validation.
 
 **Constraints:**
 

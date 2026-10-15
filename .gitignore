@@ -30,3 +30,7 @@ data/**/*.csv
 
 # Confidential challenge brief: never commit
 *brief*.pdf
+
+# Local tooling output
+.playwright-cli/
+.impeccable/review/
