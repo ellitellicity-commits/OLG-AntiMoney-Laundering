@@ -28,11 +28,14 @@ from fastapi.staticfiles import StaticFiles
 from backend.integrations.jube_router import make_jube_router
 from backend.pipeline.common import BANDS, DATA, FEATURES, MODELS, ROOT, SCORES, SYNTH, TXN_FLAGS, load_metadata
 
-from . import ai, report
-from .schemas import (AISummary, AlertDetail, AlertList, AlertSummary, AskIn, AskOut, DecisionIn, DecisionOut, Meta,
+from . import ai, chat, report
+from .schemas import (AISummary, AlertDetail, AlertList, AlertSummary, AskIn, AskOut, ChatIn, ChatOut, DecisionIn,
+                      DecisionOut, Meta, Note, NoteIn, NoteRemoved,
                       Network, PeerComparison, PlayerDetail, SearchIn, SearchOut, Timeline)
 
 DECISIONS_FILE = DATA / "decisions.json"
+NOTES_FILE = DATA / "notes.json"  # pinned AI chat answers; kept apart so a note can never change an alert's status
+NOTE_EVENTS = {"pin": "AI note pinned", "remove": "AI note removed"}  # their "decision" label in the audit trail
 STATUS_FOR = {"accept": "In review", "escalate": "Escalated", "close": "Closed", "assign": "In review"}
 BAND_ORDER = {name: i for i, (_, name) in enumerate(reversed(BANDS))}
 PEER_CHART = [  # feature, baseline feature, label, unit
@@ -85,6 +88,9 @@ class Store:
         self.lock = threading.Lock()
         self.decisions: dict[str, list[dict]] = (
             json.loads(DECISIONS_FILE.read_text(encoding="utf-8")) if DECISIONS_FILE.exists() else {})
+        # alert_id -> notes, oldest first; a removed note stays (removed_by, removed_at) for the audit trail
+        self.notes: dict[str, list[dict]] = (
+            json.loads(NOTES_FILE.read_text(encoding="utf-8")) if NOTES_FILE.exists() else {})
 
     def status(self, alert_id: str) -> str:
         hist = self.decisions.get(alert_id)
@@ -100,6 +106,36 @@ class Store:
             tmp = DECISIONS_FILE.with_suffix(".tmp")
             tmp.write_text(json.dumps(self.decisions, indent=1), encoding="utf-8")
             tmp.replace(DECISIONS_FILE)
+
+    def active_notes(self, alert_id: str) -> list[dict]:
+        return [{k: n[k] for k in Note.model_fields} for n in self.notes.get(alert_id, []) if not n.get("removed_by")]
+
+    def add_note(self, alert_id: str, fields: dict) -> dict:
+        with self.lock:
+            seq = max((int(n["note_id"][2:]) for ns in self.notes.values() for n in ns), default=0) + 1
+            note = {"note_id": f"N-{seq:04d}", "alert_id": alert_id, **fields, "recorded_at": now()}
+            self.notes.setdefault(alert_id, []).append(note)
+            self._save_notes()
+        return note
+
+    def remove_note(self, alert_id: str, note_id: str, investigator: str) -> dict | None:
+        with self.lock:
+            note = next((n for n in self.notes.get(alert_id, [])
+                         if n["note_id"] == note_id and not n.get("removed_by")), None)
+            if note is None:
+                return None
+            note["removed_by"], note["removed_at"] = investigator, now()
+            self._save_notes()
+        return note
+
+    def _save_notes(self):
+        tmp = NOTES_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.notes, indent=1), encoding="utf-8")
+        tmp.replace(NOTES_FILE)
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 store = Store()
@@ -117,7 +153,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST", "DELETE"], allow_headers=["*"])
 
 
 def clean(v):
@@ -271,7 +307,7 @@ def list_alerts(
 def alert_detail(alert_id: str):
     a = get_alert(alert_id)
     return {**a, "team": store.team(a), "status": store.status(alert_id),
-            "decisions": store.decisions.get(alert_id, [])}
+            "decisions": store.decisions.get(alert_id, []), "notes": store.active_notes(alert_id)}
 
 
 @app.post("/alerts/{alert_id}/decision", response_model=DecisionOut)
@@ -286,10 +322,37 @@ def record_decision(alert_id: str, body: DecisionIn):
     record = {
         "decision": body.decision, "note": body.note.strip(), "team": body.team,
         "investigator": body.investigator.strip(), "status": STATUS_FOR[body.decision],
-        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "recorded_at": now(),
     }
     store.save_decision(alert_id, record)
     return {"alert_id": alert_id, "status": record["status"], "team": store.team(a), "decision": record}
+
+
+@app.post("/alerts/{alert_id}/notes", response_model=Note, status_code=201)
+def pin_note(alert_id: str, body: NoteIn):
+    """Pin an AI chat answer to a case. A note is a record of what the assistant said, not a decision:
+    it never changes the alert's status or team. Shown in the alert, the audit trail and the case report."""
+    get_alert(alert_id)
+    if not body.investigator.strip():
+        raise HTTPException(422, "Enter the investigator's name: pinned notes are recorded in the audit trail")
+    if not body.answer.strip():
+        raise HTTPException(422, "The note has no answer text")
+    fields = body.model_dump()
+    fields.update(investigator=body.investigator.strip(), question=body.question.strip(), answer=body.answer.strip())
+    return store.add_note(alert_id, fields)
+
+
+@app.delete("/alerts/{alert_id}/notes/{note_id}", response_model=NoteRemoved)
+def remove_note(alert_id: str, note_id: str, investigator: str = Query("", max_length=100)):
+    """Remove a pinned note from the case. The note is kept in the audit trail with who removed it and when."""
+    get_alert(alert_id)
+    if not investigator.strip():
+        raise HTTPException(422, "Enter the investigator's name: removing a note is recorded in the audit trail")
+    note = store.remove_note(alert_id, note_id, investigator.strip())
+    if note is None:
+        raise HTTPException(404, f"No pinned note {note_id} on {alert_id} (it may already be removed)")
+    return {"note_id": note_id, "alert_id": alert_id, "removed": True, "removed_by": note["removed_by"],
+            "recorded_at": note["removed_at"]}
 
 
 # --- Jube case management (optional; inert until JUBE_URL / JUBE_MODEL_GUID are set, see docs/JUBE.md) ---
@@ -482,10 +545,22 @@ def watchlist():
 
 @app.get("/audit")
 def audit():
-    """Every recorded decision, newest first: who decided what, when, and why."""
+    """Every recorded decision and pinned-note event, newest first: who did what, when, and why."""
     rows = [{"alert_id": aid, **d, "player_id": store.alert_by_id.get(aid, {}).get("player_id")}
             for aid, hist in store.decisions.items() for d in hist]
-    rows.sort(key=lambda d: d["recorded_at"], reverse=True)
+    for aid, notes in store.notes.items():
+        pid = store.alert_by_id.get(aid, {}).get("player_id")
+        for n in notes:
+            what = f"{n['note_id']}: {n['question'] or n['answer'][:120]}"
+            rows.append({"alert_id": aid, "player_id": pid, "decision": NOTE_EVENTS["pin"], "status": None, "team": None,
+                         "investigator": n["investigator"], "note": what, "note_id": n["note_id"],
+                         "recorded_at": n["recorded_at"]})
+            if n.get("removed_by"):
+                rows.append({"alert_id": aid, "player_id": pid, "decision": NOTE_EVENTS["remove"], "status": None,
+                             "team": None, "investigator": n["removed_by"], "note": what, "note_id": n["note_id"],
+                             "recorded_at": n["removed_at"]})
+    order = {id(r): i for i, r in enumerate(rows)}  # same-second ties: later-recorded event first
+    rows.sort(key=lambda d: (d["recorded_at"], order[id(d)]), reverse=True)
     return {"total": len(rows), "decisions": rows}
 
 
@@ -534,7 +609,10 @@ def ai_search(body: SearchIn):
 
     def run(f: dict) -> dict:
         return list_alerts(band=f.get("band"), team=f.get("team"), type=f.get("type"), status=f.get("status"),
-                           q=f.get("q"), min_score=f.get("min_score"), sort=f.get("sort", "-score"), limit=5000)
+                           q=f.get("q"), min_score=f.get("min_score"), sort=f.get("sort", "-score"), limit=5000,
+                           # Called directly, FastAPI's Query() defaults are not applied: pass these explicitly,
+                           # or the truthy Query objects filter out every alert.
+                           confidence=None, include_watchlist=False)
     result = run(parsed["filters"])
     if parsed["source"] == "llm" and result["total"] == 0 and parsed["filters"]:
         # The model's reading matched nothing: show everything rather than an empty queue, and say so.
@@ -542,6 +620,51 @@ def ai_search(body: SearchIn):
                   "alerts, so all alerts are shown)"}
         result = run({})
     return {"query": body.query, **parsed, **result}
+
+
+# --- Chat panel (docs/CHAT_CONTRACT.md) -------------------------------------------------------
+
+def _chat_rows(f: dict, sort: str, include_watchlist: bool) -> list[dict]:
+    # Every list_alerts argument is passed explicitly: called directly, FastAPI's Query() defaults are not applied.
+    try:
+        return list_alerts(band=f.get("band"), team=f.get("team"), type=f.get("type"), status=f.get("status"),
+                           q=f.get("q"), min_score=f.get("min_score"), confidence=f.get("confidence"),
+                           sort=sort, include_watchlist=include_watchlist, limit=5000)["alerts"]
+    except HTTPException:  # unknown sort key from the client: fall back to the default order
+        return list_alerts(band=f.get("band"), team=f.get("team"), type=f.get("type"), status=f.get("status"),
+                           q=f.get("q"), min_score=f.get("min_score"), confidence=f.get("confidence"),
+                           sort="-score", include_watchlist=include_watchlist, limit=5000)["alerts"]
+
+
+def _chat_extra(pid: str) -> dict:
+    """Notable profile facts for a compact row; only what is unusual, to keep the evidence short."""
+    if pid not in store.features.index:
+        return {}
+    f = store.features.loc[pid]
+    out = {}
+    if clean(f.get("network_cluster_size")) and int(f["network_cluster_size"]) > 1:
+        out["accounts_in_linked_ring"] = int(f["network_cluster_size"])
+    if bool(f.get("sanctions_hit")):
+        out["sanctions_screening_match"] = True
+    if bool(f.get("pep")):
+        out["pep"] = True
+    if str(f.get("kyc_status", "verified")) != "verified":
+        out["identity_status"] = str(f["kyc_status"])
+    return out
+
+
+def chat_data() -> chat.ChatData:
+    return chat.ChatData(
+        meta=meta(), rows=_chat_rows, alert=lambda i: store.alert_by_id.get(i),
+        alert_for_player=lambda p: store.alert_by_player.get(p), summary=summary,
+        case_file=case_file, stats=stats, row_extra=_chat_extra)
+
+
+@app.post("/chat", response_model=ChatOut)
+def chat_endpoint(body: ChatIn):
+    """The investigation assistant: answers about the queue, the overview or the open alert, from computed
+    evidence only. Never asks back, never records a decision; action buttons come from a fixed whitelist."""
+    return chat.answer(chat_data(), body)
 
 
 @app.get("/alerts/{alert_id}/report", response_class=HTMLResponse)

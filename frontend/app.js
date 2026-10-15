@@ -1,8 +1,13 @@
 /* Player Risk Review dashboard: plain JS, no framework.
  *
- * Two views: the alert queue with a tabbed detail panel (Overview, Evidence, Activity,
- * Network, Ask AI), and an Overview screen (queue-wide counts, compliance indicators,
- * emerging-risk trends, the watchlist, the AI model and the audit trail).
+ * Two columns: the work area on the left and a persistent AI chat panel on the right
+ * (docs/CHAT_PANEL_PLAN.md, docs/CHAT_FRONTEND_OUTLINE.md). The work area shows one view
+ * at a time: the alert queue, the Team overview (queue-wide counts, compliance indicators,
+ * emerging-risk trends, the watchlist, the AI model and the audit trail), or one alert
+ * (tabs Overview, Evidence, Activity, Network) with Back, Previous and Next.
+ *
+ * The chat posts to the API's /chat (contract: docs/CHAT_CONTRACT.md); ?chat=stub uses the
+ * built-in stub instead. Model text is only ever rendered as text nodes.
  *
  * Data comes from the FastAPI service (backend/app/main.py). If the API cannot be
  * reached, the dashboard falls back to the hand-written frontend/mock/alerts.json.
@@ -18,13 +23,13 @@
 
   const ONTARIO = new Set(["Toronto", "Ottawa", "Hamilton-Niagara", "Southwestern ON", "Eastern ON", "Northern ON"]);
   const BAND_RANK = { Low: 0, Medium: 1, High: 2, Critical: 3 };
-  const BAND_FILL = { Low: "#E4E6E9", Medium: "#E8B84A", High: "#B4500F", Critical: "#8E1B1B" };
+  // Chart and network colours are CSS tokens (styles.css :root), so light and dark themes both apply.
+  const BAND_TOKEN = { Low: "low", Medium: "medium", High: "high", Critical: "critical" };
   const STATUS_FOR = { accept: "In review", escalate: "Escalated", close: "Closed", assign: "In review" };
   const TEAMS = ["AML", "Fraud", "Safer Gambling"];
   const CONFIDENCE = ["High", "Medium", "Low"];
   const DECISION_LABEL = { accept: "Accepted recommendation", escalate: "Escalated", close: "Closed as explained", assign: "Assigned" };
-  const TABS = [["overview", "Overview"], ["evidence", "Evidence"], ["activity", "Activity"], ["network", "Network"],
-                ["ask", "Ask AI"]];
+  const TABS = [["overview", "Overview"], ["evidence", "Evidence"], ["activity", "Activity"], ["network", "Network"]];
   const TOP_REASONS = 3;
   const NAME_KEY = "olg.investigator";
 
@@ -56,13 +61,10 @@
     PEP_EDD: { unit: "money", base: "own baseline deposits per 30 days" },
   };
 
-  const ASK_SUGGESTIONS = ["Why was this player flagged?", "How does this compare with similar players?",
-                           "What should I check next?"];
-
   const state = {
     alerts: [], view: [], selected: 0, openId: null, openAlert: null, detail: null,
     sort: { key: "score", dir: "desc" }, mock: false, mockAlerts: {}, mockDecisions: {},
-    meta: null, token: 0, minScore: null, askHistory: [], flaggedOnly: false, tab: "overview",
+    meta: null, token: 0, minScore: null, flaggedOnly: false, tab: "overview",
     includeWatchlist: false, screen: "queue",
   };
 
@@ -85,7 +87,9 @@
     if (!res.ok) {
       let msg = `${res.status} ${res.statusText}`;
       try { msg = (await res.json()).detail || msg; } catch { /* not JSON */ }
-      throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+      const err = new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+      err.status = res.status;
+      throw err;
     }
     return res.json();
   }
@@ -117,6 +121,26 @@
     get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch { /* not persisted */ } },
   };
+
+  // --- Light / dark theme ----------------------------------------------------------------
+  // index.html applies a stored choice before first paint; with none, the system setting applies.
+  const THEME_KEY = "olg.theme";
+  const SYSTEM_DARK = matchMedia("(prefers-color-scheme: dark)");
+  const isDark = () => (document.documentElement.dataset.theme || (SYSTEM_DARK.matches ? "dark" : "light")) === "dark";
+  function syncThemeButton() {
+    const dark = isDark(), btn = $("#theme-toggle");
+    btn.setAttribute("aria-pressed", String(dark));
+    $("#theme-toggle-label").textContent = dark ? "Dark" : "Light";
+    btn.title = dark ? "Dark theme on. Switch to light" : "Light theme on. Switch to dark";
+  }
+  $("#theme-toggle").addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    store.set(THEME_KEY, next);
+    syncThemeButton();
+  });
+  SYSTEM_DARK.addEventListener("change", syncThemeButton);
+  syncThemeButton();
 
   // --- Loading --------------------------------------------------------------------------
 
@@ -169,18 +193,16 @@
     }
     applyView();
     if (state.view.length) selectRow(0, true);
+    chatReady();
   }
-
-  const aiLabel = (ai) => (ai?.available ? `AI: ${ai.provider} ${ai.model}${ai.local ? " (local)" : ""}` : "");
 
   function renderAiStatus() {
     const ai = state.meta.ai, el = $("#ai-status");
     el.hidden = false;
     el.dataset.on = String(!!ai?.available);
-    el.textContent = ai?.available ? `AI assistant on · ${ai.model}${ai.local ? " (local)" : ""}` : "AI assistant offline";
+    el.textContent = (ai?.available ? `AI assistant on · ${ai.model}${ai.local ? " (local)" : ""}` : "AI assistant offline") +
+      (CHAT_MODE === "stub" ? " · chat: built-in stub" : "");
     el.title = ai?.available ? `Provider: ${ai.provider}` : (ai?.how_to_enable || "");
-    const askNote = $("#ask-status");
-    if (askNote) askNote.textContent = askStatusText();
   }
 
   async function refreshAiStatus() {
@@ -246,6 +268,8 @@
     const idx = state.view.findIndex((a) => a.alert_id === keep);
     state.selected = idx >= 0 ? idx : 0;
     renderQueue();
+    updateAlertNav();
+    updateChatContext();
   }
 
   function renderQueue() {
@@ -316,7 +340,10 @@
   async function openAlert(alertId, message) {
     const summary = state.alerts.find((a) => a.alert_id === alertId);
     if (!summary) return;
+    const changed = state.openId !== alertId;
     state.openId = alertId;
+    showScreen("alert");
+    if (changed) chatDivider(summary);
     document.querySelectorAll("#queue-body tr.is-open").forEach((r) => r.classList.remove("is-open"));
     document.getElementById(`row-${alertId}`)?.classList.add("is-open");
     const token = ++state.token;
@@ -326,7 +353,7 @@
     }
     try {
       let alert, peers = null, player = null, network = null, timeline = null;
-      if (!message) { state.askHistory = []; state.flaggedOnly = false; state.tab = "overview"; }
+      if (!message) { state.flaggedOnly = false; state.tab = "overview"; }
       if (state.mock) {
         const m = state.mockAlerts[alertId];
         alert = { ...m, ...summary, recommended_action: m.recommended_action,
@@ -355,10 +382,11 @@
   }
 
   function renderDetail(message) {
+    stopSpeaking();  // never keep reading a previous alert or tab
     const { alert: a, peers, player, network, timeline } = state.detail;
     const end = a.window?.end_date;
     const p = a.profile;
-    const tabs = TABS.filter(([id]) => !(state.mock && (id === "ask" || id === "network" || id === "activity")));
+    const tabs = TABS.filter(([id]) => !(state.mock && (id === "network" || id === "activity")));
     if (!tabs.some(([id]) => id === state.tab)) state.tab = "overview";
     const compliance = [
       p.kyc_status && p.kyc_status !== "verified" ? `<span class="tag tag-flag-strong">Identity ${esc(p.kyc_status)}</span>` : "",
@@ -371,7 +399,6 @@
       evidence: () => evidenceTab(a, peers),
       activity: () => `${timeline ? timelineSection(timeline) : ""}${player ? activitySection(player) : ""}`,
       network: () => (network ? networkSection(network) : ""),
-      ask: () => askSection(),
     };
     $("#detail").innerHTML = `
       <div class="detail-scroll"><div class="detail-body">
@@ -450,7 +477,6 @@
       el.addEventListener("keydown", (e) => { if (e.key === "Enter") openLinked(el.dataset.openAlert); });
     });
     panel.querySelectorAll("[data-goto-tab]").forEach((el) => el.addEventListener("click", () => state.showTab(el.dataset.gotoTab, true)));
-    if (state.tab === "ask") wireAsk(state.openAlert);
     if (state.tab === "activity") $("#flagged-toggle")?.addEventListener("click", toggleFlagged);
   }
 
@@ -583,25 +609,103 @@
           <text x="0" y="${y + 32}" class="t-muted">Peer median <tspan class="t-mono">${esc(f(pr.median))}</tspan></text>
           <text x="0" y="${y + 48}" class="t-muted">Middle 50% <tspan class="t-mono">${esc(f(pr.q1))}–${esc(f(pr.q3))}</tspan></text>
           <text x="0" y="${y + 64}" class="t-muted">${pr.n} ${pr.active_only ? "active " : ""}peers</text>
-          <line x1="${X(pr.p05)}" x2="${X(pr.p95)}" y1="${axis}" y2="${axis}" stroke="#A9A69D" stroke-width="2"/>
-          <rect x="${X(pr.q1)}" y="${axis - 7}" width="${Math.max(2, X(pr.q3) - X(pr.q1))}" height="14" fill="#D5D3CC"/>
-          <line x1="${X(pr.median)}" x2="${X(pr.median)}" y1="${axis - 11}" y2="${axis + 11}" stroke="#545A62" stroke-width="2"/>
-          ${xb != null ? `<circle cx="${xb}" cy="${axis}" r="6" fill="#FFFFFF" stroke="#1A1D21" stroke-width="2"/>
+          <line x1="${X(pr.p05)}" x2="${X(pr.p95)}" y1="${axis}" y2="${axis}" style="stroke:var(--chart-faint)" stroke-width="2"/>
+          <rect x="${X(pr.q1)}" y="${axis - 7}" width="${Math.max(2, X(pr.q3) - X(pr.q1))}" height="14" style="fill:var(--chart-band)"/>
+          <line x1="${X(pr.median)}" x2="${X(pr.median)}" y1="${axis - 11}" y2="${axis + 11}" style="stroke:var(--chart-mid)" stroke-width="2"/>
+          ${xb != null ? `<circle cx="${xb}" cy="${axis}" r="6" style="fill:var(--card);stroke:var(--chart-ink)" stroke-width="2"/>
             <text x="${xb}" y="${axis + 26}" text-anchor="${anchor(xb)}" class="t-mono">Baseline ${esc(f(m.baseline))}</text>` : ""}
-          <circle cx="${xc}" cy="${axis}" r="6" fill="#1A1D21"/>
+          <circle cx="${xc}" cy="${axis}" r="6" style="fill:var(--chart-ink)"/>
           <text x="${xc}" y="${axis - 16}" text-anchor="${anchor(xc)}" class="t-mono" font-weight="600">Now ${esc(f(m.current))}</text>
         </g>`;
     }).join("");
     return `
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`Peer comparison. ${summary.join(". ")}.`)}">${rows}</svg>
       <div class="legend">
-        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="#1A1D21"/></svg>Last 30 days</span>
-        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="#fff" stroke="#1A1D21" stroke-width="2"/></svg>Own 90-day baseline (per 30 days)</span>
-        <span><svg width="22" height="14" aria-hidden="true"><rect x="0" y="2" width="22" height="10" fill="#D5D3CC"/><line x1="11" x2="11" y1="0" y2="14" stroke="#545A62" stroke-width="2"/></svg>Middle 50% of peers and median</span>
-        <span><svg width="22" height="14" aria-hidden="true"><line x1="0" x2="22" y1="7" y2="7" stroke="#A9A69D" stroke-width="2"/></svg>Peers 5th–95th percentile</span>
+        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" style="fill:var(--chart-ink)"/></svg>Last 30 days</span>
+        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" style="fill:var(--card);stroke:var(--chart-ink)" stroke-width="2"/></svg>Own 90-day baseline (per 30 days)</span>
+        <span><svg width="22" height="14" aria-hidden="true"><rect x="0" y="2" width="22" height="10" style="fill:var(--chart-band)"/><line x1="11" x2="11" y1="0" y2="14" style="stroke:var(--chart-mid)" stroke-width="2"/></svg>Middle 50% of peers and median</span>
+        <span><svg width="22" height="14" aria-hidden="true"><line x1="0" x2="22" y1="7" y2="7" style="stroke:var(--chart-faint)" stroke-width="2"/></svg>Peers 5th–95th percentile</span>
         <span>Money and count scales are logarithmic.</span>
       </div>`;
   }
+
+  // --- Read aloud (browser text-to-speech) -------------------------------------------------
+  // Uses the browser's built-in speechSynthesis with the operating system's voices: free, offline,
+  // and independent of which AI provider wrote the text. Never auto-plays; one utterance at a time.
+
+  const tts = { supported: "speechSynthesis" in window, button: null, voice: null };
+
+  function pickVoice() {
+    const voices = tts.supported ? speechSynthesis.getVoices() : [];
+    const en = voices.filter((v) => /^en[-_]/i.test(v.lang));
+    tts.voice = en.find((v) => /en[-_]CA/i.test(v.lang)) || en.find((v) => /en[-_]US/i.test(v.lang) && v.localService)
+      || en.find((v) => v.localService) || en[0] || null;
+  }
+  if (tts.supported) {
+    pickVoice();
+    speechSynthesis.addEventListener?.("voiceschanged", pickVoice);
+  }
+
+  // Make figures and symbols read naturally: "$83,400.00" -> "$83,400", "20.0x" -> "20.0 times".
+  function speakable(text) {
+    return text
+      .replace(/\$(\d[\d,]*)\.00\b/g, "$$$1")
+      .replace(/(\d)\s*[x×]\b/g, "$1 times")
+      .replace(/×/g, " times ").replace(/≥/g, " at least ").replace(/≤/g, " at most ")
+      .replace(/[‐‑‒–—]/g, "-").replace(/\s+-\s+/g, ", ")
+      .replace(/\be\.g\./gi, "for example").replace(/\bi\.e\./gi, "that is")
+      .replace(/\s*·\s*/g, ", ").replace(/\s+/g, " ").trim();
+  }
+
+  // Chrome stops long single utterances after ~15 s, so speak sentence by sentence.
+  function sentences(text) {
+    // Split only where punctuation is followed by a space, so decimals like "20.0" stay intact.
+    return speakable(text).split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  function setTtsButton(btn, speaking) {
+    btn.textContent = speaking ? "Stop reading" : "Read aloud";
+    btn.setAttribute("aria-pressed", String(speaking));
+  }
+
+  function stopSpeaking() {
+    if (!tts.supported) return;
+    speechSynthesis.cancel();
+    if (tts.button) setTtsButton(tts.button, false);
+    tts.button = null;
+  }
+
+  function speak(text, btn) {
+    const parts = sentences(text);
+    if (!parts.length) return;
+    stopSpeaking();
+    tts.button = btn;
+    setTtsButton(btn, true);
+    parts.forEach((part, i) => {
+      const u = new SpeechSynthesisUtterance(part);
+      if (tts.voice) { u.voice = tts.voice; u.lang = tts.voice.lang; }
+      u.rate = 1;
+      if (i === parts.length - 1) u.onend = () => { if (tts.button === btn) { setTtsButton(btn, false); tts.button = null; } };
+      u.onerror = () => { if (tts.button === btn) { setTtsButton(btn, false); tts.button = null; } };
+      speechSynthesis.speak(u);
+    });
+  }
+
+  // Button markup: `target` is the id of the element to read, or omitted to read the
+  // .ask-a answer in the same list item.
+  function ttsButton(target) {
+    if (!tts.supported) return "";
+    return `<button type="button" class="btn-link tts-btn" aria-pressed="false"${target ? ` data-tts-for="${esc(target)}"` : ""}>Read aloud</button>`;
+  }
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest?.(".tts-btn");
+    if (!btn) return;
+    if (tts.button === btn) { stopSpeaking(); return; }
+    const source = btn.dataset.ttsFor ? document.getElementById(btn.dataset.ttsFor) : btn.closest("li")?.querySelector(".ask-a");
+    if (source?.textContent.trim()) speak(source.textContent, btn);
+  });
+  window.addEventListener("pagehide", stopSpeaking);
 
   // --- AI: case summary and Q&A ----------------------------------------------------------
   // The summary sits above the evidence and is never shown without it (DESIGN.md).
@@ -628,8 +732,8 @@
         : `${s.label} · built-in template`;
       $("#sum-text").textContent = s.text;
       $("#sum-meta").textContent = how;
-      $("#sum-actions").innerHTML = s.source === "llm"
-        ? `<button type="button" class="btn-link" id="sum-refresh">Regenerate</button>` : "";
+      $("#sum-actions").innerHTML = `<span class="head-actions">${s.text ? ttsButton("sum-text") : ""}${s.source === "llm"
+        ? `<button type="button" class="btn-link" id="sum-refresh">Regenerate</button>` : ""}</span>`;
       $("#sum-note").hidden = !s.note;
       $("#sum-note").textContent = s.note || "";
       $("#sum-refresh")?.addEventListener("click", () => loadSummary(alertId, state.token, true));
@@ -640,60 +744,6 @@
     } finally {
       $("#ai-summary")?.setAttribute("aria-busy", "false");
     }
-  }
-
-  function askStatusText() {
-    const ai = state.meta?.ai;
-    return ai?.available ? `${aiLabel(ai)} · answers use only this case's evidence`
-      : "AI assistant offline: start Ollama, or add a free Groq / Gemini key (see README)";
-  }
-
-  function askSection() {
-    return `<section class="section" aria-labelledby="ask-h">
-      <div class="section-head"><h3 id="ask-h">Ask about this case</h3>
-        <span class="muted" id="ask-status">${esc(askStatusText())}</span></div>
-      <div class="ask-suggestions">${ASK_SUGGESTIONS.map((q) =>
-        `<button type="button" class="tag ask-chip" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>
-      <form class="ask-form" id="ask-form">
-        <label class="visually-hidden" for="ask-q">Question about this case</label>
-        <input id="ask-q" type="search" maxlength="1000" autocomplete="off"
-               placeholder="e.g. What changed compared with this player's own history?">
-        <button type="submit" class="btn">Ask</button>
-      </form>
-      <ol class="ask-log" id="ask-log" aria-live="polite">${state.askHistory.reduce((html, t, i, all) =>
-        t.role === "user" ? html + `<li><div class="ask-q">${esc(t.content)}</div><div class="ask-a">${esc(all[i + 1]?.content || "")}</div></li>` : html, "")}</ol>
-    </section>`;
-  }
-
-  function wireAsk(a) {
-    const form = $("#ask-form");
-    if (!form) return;
-    const send = async (question) => {
-      if (!question) return;
-      const log = $("#ask-log");
-      const item = document.createElement("li");
-      item.innerHTML = `<div class="ask-q">${esc(question)}</div><div class="ask-a muted">Thinking…</div>`;
-      log.append(item);
-      $("#ask-q").value = "";
-      form.querySelector("button").disabled = true;
-      try {
-        const res = await api(`/alerts/${encodeURIComponent(a.alert_id)}/ask`, {
-          method: "POST", body: JSON.stringify({ question, history: state.askHistory }),
-        });
-        const warn = res.unverified_numbers?.length
-          ? `<div class="ask-warn">Check: ${esc(res.unverified_numbers.join(", "))} not found in the evidence.</div>` : "";
-        item.querySelector(".ask-a").outerHTML = `<div class="ask-a">${esc(res.answer)}</div>${warn}`;
-        if (res.source === "llm") {
-          state.askHistory.push({ role: "user", content: question }, { role: "assistant", content: res.answer });
-        }
-      } catch (err) {
-        item.querySelector(".ask-a").textContent = `Not answered: ${err.message}`;
-      } finally {
-        form.querySelector("button").disabled = false;
-      }
-    };
-    form.addEventListener("submit", (e) => { e.preventDefault(); send($("#ask-q").value.trim()); });
-    $("#detail").querySelectorAll(".ask-chip").forEach((b) => b.addEventListener("click", () => send(b.dataset.q)));
   }
 
   // --- Activity: weekly timeline and transactions ------------------------------------------
@@ -723,7 +773,7 @@
     const curFrom = new Date(tl.current_window_start), baseFrom = new Date(tl.baseline_start);
     const weekEnd = (w) => new Date(new Date(w.week_start).getTime() + 7 * 86400000);
     const zone = (w) => (weekEnd(w) > curFrom ? "cur" : weekEnd(w) > baseFrom ? "base" : "old");
-    const fill = { cur: "#1A1D21", base: "#545A62", old: "#A9A69D" };
+    const fill = { cur: "var(--chart-ink)", base: "var(--chart-mid)", old: "var(--chart-faint)" };
     const metrics = [["deposits", "Deposits"], ["turnover", "Amount bet"], ["net_loss", "Net loss"]];
     const sum = (k, z) => tl.weeks.filter((w) => zone(w) === z).reduce((s, w) => s + w[k], 0);
     const rows = metrics.map(([k, label], r) => {
@@ -733,11 +783,11 @@
       const bars = tl.weeks.map((w, i) => {
         const v = w[k], bh = Math.max(v ? 1 : 0, Math.abs(v) * sc);
         return `<rect x="${(labelW + i * bw + 1).toFixed(1)}" y="${(v >= 0 ? zero - bh : zero).toFixed(1)}"
-          width="${(bw - 2).toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill[zone(w)]}"><title>Week of ${esc(w.week_start)}: ${esc(fmt.money(v))}</title></rect>`;
+          width="${(bw - 2).toFixed(1)}" height="${bh.toFixed(1)}" style="fill:${fill[zone(w)]}"><title>Week of ${esc(w.week_start)}: ${esc(fmt.money(v))}</title></rect>`;
       }).join("");
       return `<g><text x="0" y="${y0 + 14}" font-weight="600">${label}</text>
         <text x="0" y="${y0 + 30}" class="t-muted">Peak week <tspan class="t-mono">${esc(fmt.money(max))}</tspan></text>
-        <line x1="${labelW}" x2="${W - padR}" y1="${zero}" y2="${zero}" stroke="#D5D3CC"/>${bars}</g>`;
+        <line x1="${labelW}" x2="${W - padR}" y1="${zero}" y2="${zero}" style="stroke:var(--chart-band)"/>${bars}</g>`;
     }).join("");
     const H = metrics.length * rowH + 18, firstCur = tl.weeks.findIndex((w) => zone(w) === "cur");
     const xCur = labelW + Math.max(0, firstCur) * bw;
@@ -747,12 +797,12 @@
       <div class="section-head"><h3 id="tl-h">Activity over time</h3>
         <span class="muted">Weekly totals, ${esc(tl.weeks[0].week_start)} to ${esc(tl.weeks[n - 1].week_start)}</span></div>
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`Weekly activity. ${desc}.`)}">${rows}
-        <line x1="${xCur}" x2="${xCur}" y1="0" y2="${H - 14}" stroke="#1F4E79" stroke-dasharray="3 3"/>
+        <line x1="${xCur}" x2="${xCur}" y1="0" y2="${H - 14}" style="stroke:var(--chart-marker)" stroke-dasharray="3 3"/>
         <text x="${xCur + 4}" y="${H - 2}" class="t-muted">Last 30 days →</text></svg>
       <div class="legend">
-        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" fill="#1A1D21"/></svg>Last 30 days</span>
-        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" fill="#545A62"/></svg>90-day baseline</span>
-        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" fill="#A9A69D"/></svg>Earlier</span>
+        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" style="fill:var(--chart-ink)"/></svg>Last 30 days</span>
+        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" style="fill:var(--chart-mid)"/></svg>90-day baseline</span>
+        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" style="fill:var(--chart-faint)"/></svg>Earlier</span>
       </div>
     </section>`;
   }
@@ -799,18 +849,17 @@
       const [x, y] = pos[i];
       // Label near the outer account (70% along the line) so labels don't pile up in the middle.
       const lx = cx + (x - cx) * 0.7, ly = cy + (y - cy) * 0.7;
-      return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#A9A69D" stroke-width="2"/>
+      return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" style="stroke:var(--chart-faint)" stroke-width="2"/>
         ${same ? "" : `<text x="${lx}" y="${ly - 6}" text-anchor="middle" class="t-muted edge-label">${esc(labels[i])}</text>`}`;
     }).join("");
     const node = (x, y, pid, score, band, alertId, isSelf) => {
       const canOpen = !isSelf && alertId && state.alerts.some((a) => a.alert_id === alertId);
-      const dark = band === "High" || band === "Critical";
       return `<g class="node${canOpen ? " clickable" : ""}" ${canOpen ? `data-open-alert="${esc(alertId)}" tabindex="0" role="button"
         aria-label="Open ${esc(pid)}, score ${score}"` : ""}>
-        <circle cx="${x}" cy="${y}" r="${isSelf ? 30 : 24}" fill="${BAND_FILL[band] || "#E4E6E9"}" stroke="#1A1D21"
+        <circle cx="${x}" cy="${y}" r="${isSelf ? 30 : 24}" style="fill:var(--net-${BAND_TOKEN[band] || "low"});stroke:var(--chart-ink)"
           stroke-width="${isSelf ? 3 : 1}"/>
-        <text x="${x}" y="${y + 4}" text-anchor="middle" class="t-mono" fill="${dark ? "#FFFFFF" : "#1A1D21"}">${score}</text>
-        ${isSelf ? `<rect x="${x - 34}" y="${y + 33}" width="68" height="18" fill="#FFFFFF"/>` : ""}
+        <text x="${x}" y="${y + 4}" text-anchor="middle" class="t-mono" style="fill:var(--net-${BAND_TOKEN[band] || "low"}-ink)">${score}</text>
+        ${isSelf ? `<rect x="${x - 34}" y="${y + 33}" width="68" height="18" style="fill:var(--card)"/>` : ""}
         <text x="${x}" y="${y + (isSelf ? 46 : 40)}" text-anchor="middle" class="t-mono" font-weight="${isSelf ? 600 : 500}">${esc(pid)}</text></g>`;
     };
     return `<svg viewBox="0 0 ${W} ${H}" role="img" class="network-svg"
@@ -839,7 +888,6 @@
 
   function openLinked(alertId) {
     if (!state.alerts.some((a) => a.alert_id === alertId)) return;
-    if (state.screen !== "queue") showScreen("queue");
     if (alertId.startsWith("WL-") && !state.includeWatchlist) {
       state.includeWatchlist = true;
       $("#f-watchlist").checked = true;
@@ -894,15 +942,52 @@
     </div>`;
   }
 
-  function historyLine(a) {
-    const d = a.decisions || [];
-    if (!d.length) return `<p class="history-line muted">No decisions recorded yet.</p>`;
-    const items = d.slice().reverse().map((x) => `<li><span class="mono">${esc(x.recorded_at)}</span> · ${esc(x.investigator || "name not recorded")}:
-      ${esc(DECISION_LABEL[x.decision])}${x.team ? ` to ${esc(x.team)}` : ""} (${esc(x.status)})${x.note ? `. Note: ${esc(x.note)}` : ""}</li>`).join("");
-    return `<details class="history-line"><summary>Decision history (${d.length})</summary><ol class="history">${items}</ol></details>`;
+  function historyLine() {
+    return `<div class="history-line" id="history"></div>`;
+  }
+
+  // Decisions and pinned AI notes, newest first. Built with DOM nodes: notes hold model text.
+  function fillHistory(a) {
+    const box = $("#history");
+    if (!box) return;
+    const items = [...(a.decisions || []).slice().reverse().map((d) => ({ at: String(d.recorded_at || ""), d })),
+                   ...notesFor(a).map((n) => ({ at: String(n.recorded_at || ""), n }))]
+      .sort((x, y) => y.at.localeCompare(x.at));
+    if (!items.length) {
+      box.append(el("p", "muted", "No decisions recorded yet."));
+      return;
+    }
+    const details = el("details"), list = el("ol", "history");
+    details.append(el("summary", null, `Decision history (${items.length})`), list);
+    for (const { d, n } of items) {
+      const li = el("li");
+      if (d) {
+        li.append(el("span", "mono", d.recorded_at), ` · ${d.investigator || "name not recorded"}: ${DECISION_LABEL[d.decision] || d.decision}` +
+          `${d.team ? ` to ${d.team}` : ""} (${d.status})${d.note ? `. Note: ${d.note}` : ""}`);
+      } else {
+        li.className = "history-note";
+        li.append(el("span", "mono", String(n.recorded_at || "")), " · ", el("span", "tag tag-ainote", "AI note"),
+          ` AI-generated, pinned by ${n.investigator || "name not recorded"}`);
+        if (n.question) li.append(el("p", "note-q", String(n.question)));
+        li.append(el("p", "note-a", String(n.answer || "")));
+        const meta = el("p", "note-meta", providerText({ provider: n.provider || null, model: n.model || null }) +
+          (n.verified === false ? " · numbers not fully checked" : ""));
+        if (n.note_id) {
+          const rm = el("button", "btn-link", "Remove");
+          rm.type = "button";
+          rm.setAttribute("aria-label", `Remove the AI note pinned ${n.recorded_at || ""}`);
+          rm.addEventListener("click", () => removeNote(a, String(n.note_id)));
+          meta.append(" · ", rm);
+        }
+        li.append(meta);
+      }
+      list.append(li);
+    }
+    box.append(details);
   }
 
   function wireActionBar(a) {
+    fillHistory(a);
     const closeForm = $("#close-form"), assignForm = $("#assign-form");
     const toggle = (form, btn, show) => {
       form.hidden = !show;
@@ -967,15 +1052,6 @@
 
   // --- Overview screen ---------------------------------------------------------------------
 
-  function showScreen(name) {
-    state.screen = name;
-    $("#view-queue").hidden = name !== "queue";
-    $("#view-overview").hidden = name !== "overview";
-    $("#nav-queue").setAttribute("aria-pressed", String(name === "queue"));
-    $("#nav-overview").setAttribute("aria-pressed", String(name === "overview"));
-    if (name === "overview") renderOverview();
-  }
-
   function bars(obj, order) {
     const entries = (order || Object.keys(obj)).filter((k) => obj[k] != null).map((k) => [k, obj[k]]);
     const max = Math.max(1, ...entries.map(([, v]) => v));
@@ -988,7 +1064,7 @@
     const pts = series.map((v, i) => `${(i * W / (series.length - 1)).toFixed(1)},${(H - 2 - (v / max) * (H - 4)).toFixed(1)}`).join(" ");
     const x4 = (W * (series.length - 4)) / (series.length - 1);
     return `<svg width="${W}" height="${H}" aria-hidden="true" class="spark"><rect x="${x4}" y="0" width="${W - x4}" height="${H}"
-      fill="#EDECE7"/><polyline points="${pts}" fill="none" stroke="#1A1D21" stroke-width="1.5"/></svg>`;
+      style="fill:var(--chart-shade)"/><polyline points="${pts}" fill="none" style="stroke:var(--chart-ink)" stroke-width="1.5"/></svg>`;
   }
 
   // "×7" reads better than "+600%", and a flag that was near zero before is simply "new".
@@ -1116,6 +1192,825 @@
     }
   });
 
+  // --- Router: queue / overview / alert --------------------------------------------------------
+
+  function showScreen(name) {
+    state.screen = name;
+    $("#view-queue").hidden = name !== "queue";
+    $("#view-overview").hidden = name !== "overview";
+    $("#view-alert").hidden = name !== "alert";
+    $("#mode-tabs").hidden = name === "alert";
+    $("#nav-queue").setAttribute("aria-pressed", String(name === "queue"));
+    $("#nav-overview").setAttribute("aria-pressed", String(name === "overview"));
+    if (name === "overview") renderOverview();
+    if (name === "queue") $("#queue-body").rows[state.selected]?.scrollIntoView({ block: "nearest" });
+    updateAlertNav();
+    updateChatContext();
+  }
+
+  const openIndex = () => state.view.findIndex((a) => a.alert_id === state.openId);
+
+  function backToQueue() {
+    showScreen("queue");
+    const i = openIndex();
+    if (i >= 0) selectRow(i, true); else focusQueue();
+  }
+
+  // Previous / Next follow the queue's current filter and sort order.
+  function stepAlert(step) {
+    const n = state.view.length, at = openIndex();
+    const i = at >= 0 ? at + step : Math.min(state.selected, n - 1);
+    if (!n || i < 0 || i >= n) return;
+    selectRow(i, false);
+    openAlert(state.view[i].alert_id);
+  }
+
+  function updateAlertNav() {
+    if (state.screen !== "alert") return;
+    const a = state.alerts.find((x) => x.alert_id === state.openId);
+    const n = state.view.length, at = openIndex();
+    $("#alert-nav-id").textContent = a ? `${a.alert_id} · ${a.player_id}` : "";
+    $("#alert-nav-pos").textContent = at >= 0 ? `${at + 1} of ${n}` : "Not in the current filter";
+    // aria-disabled, not disabled: the button keeps focus at the end of the list.
+    $("#nav-prev").setAttribute("aria-disabled", String(at >= 0 ? at === 0 : !n));
+    $("#nav-next").setAttribute("aria-disabled", String(at >= 0 ? at === n - 1 : !n));
+  }
+
+  // --- AI chat panel --------------------------------------------------------------------------
+  // docs/CHAT_PANEL_PLAN.md §3-4, 10, 12; contract in docs/CHAT_CONTRACT.md.
+  // Model text is only ever rendered as text nodes. IDs are links only when the page knows them
+  // and the answer did not flag them as unknown. Actions come from a fixed whitelist, are
+  // re-validated here, and run only when clicked. Nothing in the chat can record a decision.
+
+  const CHAT_MODE = params.get("chat") === "stub" ? "stub" : "live";
+  const CHAT_KEY = "olg.chat.v1", CHAT_COLLAPSED_KEY = "olg.chat.collapsed";
+  const ID_RE = /\b(P\d{5}|ALR-\d{5}|WL-\d{5})\b/g;
+  const ID_ONE = /^(P\d{5}|ALR-\d{5}|WL-\d{5})$/;
+  const ALERT_ID = /^(ALR|WL)-\d{5}$/;
+  const FILTER_KEYS = ["band", "team", "type", "status", "confidence", "min_score"];
+  const SORT_LABEL = { score: "risk score", last_activity: "last activity", ai: "AI model probability",
+                       player_id: "player ID", top_reason: "top reason", team: "team", status: "status" };
+  const HISTORY_LIMIT = 12, STORE_LIMIT = 200, MAX_ACTIONS = 4;
+  const OVERLAY = matchMedia("(max-width: 1100px)");
+
+  state.chat = { messages: [], queue: [], busy: false, ready: false, collapsed: false, unread: 0, stubNotes: {}, seq: 0 };
+
+  const session = {  // sessionStorage belongs to this browser tab; it can be unavailable
+    load() { try { return JSON.parse(sessionStorage.getItem(CHAT_KEY) || "null"); } catch { return null; } },
+    save() {
+      try {
+        sessionStorage.setItem(CHAT_KEY, JSON.stringify({
+          messages: state.chat.messages.slice(-STORE_LIMIT).map(({ ui, ...m }) => m), stubNotes: state.chat.stubNotes }));
+      } catch { /* not persisted: the chat still works for this page */ }
+    },
+  };
+
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const newId = () => `m${Date.now().toString(36)}${(state.chat.seq++).toString(36)}`;
+  const chatOff = () => state.mock && CHAT_MODE !== "stub";
+  const isOverlay = () => OVERLAY.matches;
+  const nowStamp = () => new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC";
+
+  function announce(text) {
+    const live = $("#chat-live");
+    live.textContent = "";
+    setTimeout(() => { live.textContent = text; }, 30);
+  }
+
+  // --- Context ---
+
+  function buildContext() {
+    const v = (id) => $(id).value || null;
+    return {
+      view: state.screen,
+      alert_id: state.screen === "alert" ? state.openId : null,
+      filters: { band: v("#f-band"), team: v("#f-team"), type: v("#f-type"), status: v("#f-status"),
+                 confidence: v("#f-confidence"), min_score: state.minScore, search: $("#f-search").value.trim() || null,
+                 include_watchlist: state.includeWatchlist },
+      sort: (state.sort.dir === "asc" ? "" : "-") + state.sort.key,
+      visible_count: state.view.length,
+    };
+  }
+
+  function contextLabel(c) {
+    if (c.view === "overview") return "Overview";
+    if (c.view === "alert" && c.alert_id) {
+      const a = state.alerts.find((x) => x.alert_id === c.alert_id);
+      return `${c.alert_id}${a ? ` (${a.player_id})` : ""}`;
+    }
+    const f = c.filters, what = f.include_watchlist ? "alerts + watchlist" : "alerts";
+    const parts = [f.team, f.band, f.type && typeLabel(f.type), f.status, f.confidence && `${f.confidence} confidence`,
+                   f.min_score != null && `score ${f.min_score}+`, f.search && `“${f.search}”`].filter(Boolean);
+    return parts.length ? `Queue · ${parts.join(" · ")} · ${c.visible_count} ${what}` : `Queue · all ${c.visible_count} ${what}`;
+  }
+
+  function updateChatContext() {
+    if (!state.meta) return;
+    const text = contextLabel(buildContext());
+    $("#chat-context").textContent = text;
+    $("#chat-bar-context").textContent = text;
+  }
+
+  // --- Validation of everything that comes back (or comes out of sessionStorage) ---
+
+  function cleanFilters(f) {
+    if (!f || typeof f !== "object" || Array.isArray(f)) return null;
+    const keys = Object.keys(f), m = state.meta;
+    if (!keys.length || keys.some((k) => !FILTER_KEYS.includes(k))) return null;
+    const ok = {
+      band: (v) => m.bands.includes(v), team: (v) => m.teams.includes(v), status: (v) => m.statuses.includes(v),
+      type: (v) => typeof v === "string" && Object.hasOwn(m.anomaly_types, v), confidence: (v) => CONFIDENCE.includes(v),
+      min_score: (v) => Number.isInteger(v) && v >= 0 && v <= 100,
+    };
+    return keys.every((k) => ok[k](f[k])) ? Object.fromEntries(keys.map((k) => [k, f[k]])) : null;
+  }
+
+  function parseSort(v) {
+    if (typeof v !== "string") return null;
+    const key = v.replace(/^-/, "");
+    return Object.hasOwn(SORTERS, key) ? { key, dir: v.startsWith("-") ? "desc" : "asc" } : null;
+  }
+
+  function describeFilters(f) {
+    return [f.team, f.band, f.type && typeLabel(f.type), f.status, f.confidence && `${f.confidence} confidence`,
+            f.min_score != null && `score ${f.min_score}+`].filter(Boolean).join(" · ");
+  }
+
+  // Labels are always written here from validated values, never taken from the model.
+  function cleanActions(list, unknown) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (const a of list) {
+      if (!a || typeof a !== "object" || out.length >= MAX_ACTIONS) continue;
+      if (a.type === "open_alert") {
+        const id = typeof a.alert_id === "string" ? a.alert_id.trim() : "";
+        if (ALERT_ID.test(id) && !unknown.includes(id) && state.alerts.some((x) => x.alert_id === id)) {
+          out.push({ type: "open_alert", alert_id: id, label: `Open ${id}` });
+        }
+      } else if (a.type === "apply_filter") {
+        const f = cleanFilters(a.filters);
+        if (f) out.push({ type: "apply_filter", filters: f, label: `Show ${describeFilters(f)}` });
+      } else if (a.type === "sort") {
+        const s = parseSort(a.sort);
+        if (s) out.push({ type: "sort", sort: a.sort, label: `Sort by ${SORT_LABEL[s.key]}${s.dir === "asc" ? " (ascending)" : ""}` });
+      } else if (a.type === "show_watchlist" && !state.mock) {
+        out.push({ type: "show_watchlist", label: "Show watchlist" });
+      }
+    }
+    return out;
+  }
+
+  function cleanResponse(r) {
+    if (!r || typeof r !== "object" || typeof r.answer !== "string") throw new Error("the answer was not in the agreed format");
+    const str = (v, max) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+    const ids = (v) => (Array.isArray(v)
+      ? [...new Set(v.filter((x) => typeof x === "string" && ID_ONE.test(x.trim())).map((x) => x.trim()))].slice(0, 50) : []);
+    const unknown = ids(r.unknown_ids);
+    return {
+      answer: r.answer.slice(0, 8000),
+      provider: str(r.provider, 40), model: str(r.model, 80),
+      fallback_used: r.fallback_used === true,
+      verified: r.verified !== false,
+      unverified_numbers: Array.isArray(r.unverified_numbers)
+        ? r.unverified_numbers.filter((x) => typeof x === "string" || typeof x === "number").map((x) => String(x).slice(0, 40)).slice(0, 20) : [],
+      unknown_ids: unknown,
+      cases_used: ids(r.cases_used).filter((x) => !unknown.includes(x)),
+      actions: cleanActions(r.actions, unknown),
+      assumption: str(r.assumption, 300),
+    };
+  }
+
+  function knownAlert(id) {
+    if (id.startsWith("P")) {
+      const mine = state.alerts.filter((a) => a.player_id === id);
+      return mine.find((a) => a.kind !== "watchlist") || mine[0] || null;
+    }
+    return state.alerts.find((a) => a.alert_id === id) || null;
+  }
+
+  // --- Rendering (DOM nodes and textContent only) ---
+
+  function idNode(id, unknown) {
+    const target = unknown.includes(id) ? null : knownAlert(id);
+    if (!target) {
+      const s = el("span", "mono chat-id-plain", id);
+      if (unknown.includes(id)) s.title = "Unknown ID: not in the data";
+      return s;
+    }
+    const b = el("button", "btn-link mono chat-id", id);
+    b.type = "button";
+    b.dataset.chatOpen = target.alert_id;
+    if (id !== target.alert_id) b.setAttribute("aria-label", `${id}, open ${target.alert_id}`);
+    return b;
+  }
+
+  function appendText(parent, text, unknown) {
+    let last = 0;
+    for (const m of text.matchAll(ID_RE)) {
+      if (m.index > last) parent.append(text.slice(last, m.index));
+      parent.append(idNode(m[0], unknown));
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) parent.append(text.slice(last));
+  }
+
+  // Paragraphs on blank lines; "- ", "* " and "1." lines become real lists.
+  function answerNode(text, unknown) {
+    const box = el("div", "chat-answer");
+    for (const para of text.split(/\n\s*\n/)) {
+      let list = null;
+      for (const line of para.split("\n").filter((l) => l.trim())) {
+        const bullet = line.match(/^\s*[-*•]\s+(.*)$/), num = line.match(/^\s*(\d+)[.)]\s+(.*)$/);
+        if (bullet || num) {
+          const tag = num ? "ol" : "ul";
+          if (!list || list.tagName.toLowerCase() !== tag) {
+            list = el(tag);
+            if (num && num[1] !== "1") list.start = Number(num[1]);
+            box.append(list);
+          }
+          const li = el("li");
+          appendText(li, num ? num[2] : bullet[1], unknown);
+          list.append(li);
+        } else {
+          list = null;
+          const p = el("p");
+          appendText(p, line.trim(), unknown);
+          box.append(p);
+        }
+      }
+    }
+    return box;
+  }
+
+  function providerText(d) {
+    if (!d.provider) return "No AI model answered";
+    const p = d.provider.toLowerCase();
+    if (p === "stub") return "Built-in stub · not an AI model";
+    const name = { groq: "Groq", ollama: "Ollama", gemini: "Gemini" }[p] || d.provider;
+    const model = d.model ? d.model.split("/").pop() : "";
+    return [`${name}${model ? ` ${model}` : ""}`, p === "ollama" && "local", d.fallback_used && "fallback"].filter(Boolean).join(" · ");
+  }
+
+  function warnLine(label, items) {
+    const p = el("p", "chat-warn"), text = el("span", null, items.length ? `${label} ` : label);
+    items.forEach((x, i) => { if (i) text.append(", "); text.append(el("span", "mono", x)); });
+    p.append(text);
+    return p;
+  }
+
+  // Alerts an answer names (for Pin to case in Mode 1).
+  function namedAlerts(m) {
+    const d = m.data, out = new Set(d.cases_used.map(knownAlert).filter(Boolean).map((a) => a.alert_id));
+    for (const x of d.answer.matchAll(ID_RE)) {
+      const a = d.unknown_ids.includes(x[0]) ? null : knownAlert(x[0]);
+      if (a) out.add(a.alert_id);
+    }
+    return [...out];
+  }
+
+  function userNode(m) {
+    const li = el("li", "chat-entry chat-q");
+    const q = el("p", "chat-question");
+    q.append(el("span", "visually-hidden", "You asked: "), m.content);
+    li.append(q);
+    const status = { waiting: "Waiting for the previous answer…", thinking: "Thinking…",
+                     interrupted: "Not answered: the page was reloaded before the answer arrived. Ask again." }[m.state];
+    if (status) {
+      li.setAttribute("aria-busy", String(m.state === "thinking" || m.state === "waiting"));
+      li.append(el("p", "chat-status", status));
+    }
+    return li;
+  }
+
+  function assistantNode(m) {
+    const d = m.data, li = el("li", "chat-entry chat-a");
+    li.append(el("span", "visually-hidden", "Answer:"));
+    if (d.assumption) {
+      const p = el("p", "chat-assumption");
+      p.append(el("span", "label", "Assumption"), " ");
+      appendText(p, d.assumption, d.unknown_ids);
+      li.append(p);
+    }
+    li.append(answerNode(d.answer, d.unknown_ids));
+    if (d.actions.length) {
+      const row = el("div", "chat-actions");
+      d.actions.forEach((a, i) => {
+        const b = el("button", "btn btn-sm", a.label);
+        b.type = "button";
+        b.dataset.chatAction = String(i);
+        row.append(b);
+      });
+      li.append(row);
+    }
+    const warnings = [];
+    if (d.unverified_numbers.length) warnings.push(warnLine("Not found in the evidence:", d.unverified_numbers));
+    else if (d.provider && !d.verified) warnings.push(warnLine("Some numbers could not be checked against the evidence.", []));
+    if (d.unknown_ids.length) warnings.push(warnLine("Unknown ID, not in the data:", d.unknown_ids));
+    if (warnings.length) {
+      const w = el("div", "chat-warnings");
+      w.append(...warnings);
+      li.append(w);
+    }
+    const details = el("details", "chat-details");
+    details.open = !!m.ui?.details;
+    details.addEventListener("toggle", () => { m.ui = { ...m.ui, details: details.open }; });
+    const summary = el("summary", null, "Details");
+    summary.append(el("span", "visually-hidden", ": source, number check and cases used"));
+    details.append(summary, el("p", "chat-provider", [providerText(d),
+      d.provider && d.verified && !d.unverified_numbers.length ? "Numbers checked" : ""].filter(Boolean).join(" · ")));
+    const inAnswer = new Set([...d.answer.matchAll(ID_RE)].map((x) => x[0]));
+    if (d.cases_used.some((id) => !inAnswer.has(id))) {
+      const p = el("p", "chat-cases", "Cases used: ");
+      d.cases_used.forEach((id, i) => { if (i) p.append(", "); p.append(idNode(id, d.unknown_ids)); });
+      details.append(p);
+    }
+    const foot = el("div", "chat-meta");
+    foot.append(details);
+    if (d.provider) foot.append(pinNode(m));
+    li.append(foot);
+    return li;
+  }
+
+  function pinNode(m) {
+    const box = el("div", "chat-pin"), ui = m.ui || {};
+    if (m.pinned?.length) box.append(el("p", "chat-pinned", `Pinned to ${m.pinned.map((p) => p.alert_id).join(", ")}`));
+    if (ui.picker) {
+      const options = namedAlerts(m).filter((id) => !m.pinned.some((p) => p.alert_id === id));
+      if (!options.length) {
+        box.append(el("p", "chat-pin-msg", "This answer names no alert to pin it to. Open an alert, then pin it there."));
+        const cancel = el("button", "btn-link", "Close");
+        cancel.type = "button";
+        cancel.dataset.pin = "cancel";
+        box.append(cancel);
+      } else {
+        const label = el("label", "chat-pin-pick", "Pin to ");
+        const sel = el("select");
+        options.forEach((id) => sel.append(new Option(id, id)));
+        label.append(sel);
+        const ok = el("button", "btn btn-sm", "Pin");
+        ok.type = "button";
+        ok.dataset.pin = "confirm";
+        const cancel = el("button", "btn-link", "Cancel");
+        cancel.type = "button";
+        cancel.dataset.pin = "cancel";
+        box.append(label, ok, cancel);
+      }
+    } else {
+      const b = el("button", "btn-link chat-pin-btn", "Pin to case");
+      b.type = "button";
+      b.dataset.pin = "start";
+      box.append(b);
+    }
+    if (ui.msg) box.append(el("p", "chat-pin-msg", ui.msg));
+    return box;
+  }
+
+  function dividerNode(m) {
+    const li = el("li", "chat-divider");
+    const sep = el("div");
+    sep.setAttribute("role", "separator");
+    sep.setAttribute("aria-label", `Now viewing ${m.alert_id} (${m.player_id})`);
+    const label = el("span", null, "Now viewing ");
+    label.append(el("span", "mono", `${m.alert_id} · ${m.player_id}`));
+    sep.append(label);
+    li.append(sep);
+    return li;
+  }
+
+  function messageNode(m) {
+    const node = m.role === "user" ? userNode(m) : m.role === "assistant" ? assistantNode(m)
+      : m.role === "divider" ? dividerNode(m) : el("li", "chat-entry chat-notice", m.text);
+    node.dataset.id = m.id;
+    return node;
+  }
+
+  function upsert(m) {
+    const log = $("#chat-log"), old = log.querySelector(`[data-id="${CSS.escape(m.id)}"]`), node = messageNode(m);
+    if (old) old.replaceWith(node);
+    else {
+      const i = state.chat.messages.indexOf(m), prev = state.chat.messages[i - 1];
+      const after = prev && log.querySelector(`[data-id="${CSS.escape(prev.id)}"]`);
+      if (after) after.after(node); else log.append(node);
+    }
+    renderEmpty();
+    return node;
+  }
+
+  function renderEmpty() {
+    const box = $("#chat-empty");
+    box.replaceChildren();
+    box.hidden = state.chat.messages.length > 0;
+    if (!box.hidden) {
+      if (chatOff()) {
+        box.append(el("p", "chat-empty-title", "AI unavailable in offline demo data"),
+          el("p", null, "The dashboard is showing the hand-written mock alerts because the API is not running. Start the API to use the assistant."));
+      } else if (!state.chat.ready) {
+        box.append(el("p", null, "Loading…"));
+      } else {
+        box.append(el("p", "chat-empty-title", "Ask about the alerts on screen or the open case."),
+          el("p", null, "Answers use only the evidence the system computed. Numbers and IDs are checked, and the assistant never records decisions."));
+        if (CHAT_MODE === "stub") box.append(el("p", "chat-stub-note", "Stub mode (?chat=stub): answers come from a built-in test stub, not an AI model."));
+      }
+    }
+    $("#chat-log").hidden = !box.hidden;
+  }
+
+  function renderChat() {
+    $("#chat-log").replaceChildren(...state.chat.messages.map(messageNode));
+    renderEmpty();
+  }
+
+  function scrollChat() {
+    const log = $("#chat-log");
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // --- Conversation ---
+
+  function push(m) {
+    state.chat.messages.push(m);
+    upsert(m);
+    session.save();
+    scrollChat();
+  }
+
+  function chatDivider(summary) {
+    const msgs = state.chat.messages;
+    if (!msgs.length) return;
+    let at = -1;
+    for (let i = msgs.length - 1; i >= 0 && at < 0; i--) if (msgs[i].role === "divider") at = i;
+    if (at >= 0 && msgs[at].alert_id === summary.alert_id &&
+        !msgs.slice(at + 1).some((m) => m.role === "user" && m.context?.alert_id !== summary.alert_id)) return;
+    const last = msgs[msgs.length - 1];
+    if (last.role === "divider") {  // no messages since the last divider: replace it instead of stacking
+      msgs.pop();
+      $("#chat-log").querySelector(`[data-id="${CSS.escape(last.id)}"]`)?.remove();
+      session.save();
+      chatDivider(summary);  // the divider before it may already be for this alert
+      return;
+    }
+    push({ id: newId(), role: "divider", alert_id: summary.alert_id, player_id: summary.player_id });
+  }
+
+  function historyFor(m) {
+    const msgs = state.chat.messages;
+    return msgs.slice(0, msgs.indexOf(m)).filter((x) => x.role !== "notice").slice(-HISTORY_LIMIT).map((x) => ({
+      role: x.role,
+      content: x.role === "user" ? x.content : x.role === "assistant" ? x.data.answer : `Now viewing ${x.alert_id} (${x.player_id})`,
+    }));
+  }
+
+  function sendQuestion(text) {
+    text = text.trim().slice(0, 1000);
+    if (!text || chatOff() || !state.chat.ready) return false;
+    const m = { id: newId(), role: "user", content: text, context: buildContext(), state: "waiting" };
+    push(m);
+    state.chat.queue.push(m);
+    processQueue();
+    return true;
+  }
+
+  async function processQueue() {
+    if (state.chat.busy) return;
+    const m = state.chat.queue.shift();
+    if (!m) return;
+    state.chat.busy = true;
+    m.state = "thinking";
+    upsert(m);
+    announce("Thinking…");
+    let reply;
+    try {
+      const data = cleanResponse(await chatTransport({ messages: historyFor(m), context: m.context, question: m.content }));
+      reply = { id: newId(), role: "assistant", question: m.content, data, pinned: [] };
+      const flags = [data.unverified_numbers.length && `${data.unverified_numbers.length} number(s) not found in the evidence`,
+                     data.unknown_ids.length && `${data.unknown_ids.length} unknown ID(s)`].filter(Boolean);
+      if (!state.chat.collapsed) announce(`Answer: ${data.answer.slice(0, 160)}${flags.length ? `. Check: ${flags.join(", ")}.` : ""}`);
+    } catch (err) {
+      reply = { id: newId(), role: "notice", text: unavailableText(err) };
+      if (!state.chat.collapsed) announce(reply.text);
+    }
+    const msgs = state.chat.messages, i = msgs.indexOf(m);
+    if (i >= 0 && state.chat.collapsed) {
+      state.chat.unread += 1;
+      renderUnread();
+      announce(`${state.chat.unread} new ${state.chat.unread === 1 ? "answer" : "answers"} in the assistant. Press Ctrl+K to open it.`);
+    }
+    if (i >= 0) {  // New chat may have cleared the conversation while this was in flight
+      m.state = "done";
+      msgs.splice(i + 1, 0, reply);
+      upsert(m);
+      upsert(reply);
+      session.save();
+      if (msgs[msgs.length - 1] === reply) scrollChat();
+    }
+    state.chat.busy = false;
+    processQueue();
+  }
+
+  function unavailableText(err) {
+    const rest = " The rest of the dashboard works as usual.";
+    if (err.status === 404 || err.status === 405) return `AI is unavailable: this API does not have the /chat endpoint yet.${rest}`;
+    if (err.status == null && err instanceof TypeError) return `AI is unavailable: the API could not be reached.${rest}`;
+    return `AI is unavailable: ${err.message}.${rest}`;
+  }
+
+  function newChat() {
+    state.chat.messages = [];
+    state.chat.queue = [];
+    session.save();
+    renderChat();
+    announce("New chat started");
+    $("#chat-input").focus();
+  }
+
+  // --- Transport: live POST /chat, or the built-in stub (?chat=stub) ---
+
+  async function chatTransport(body) {
+    if (CHAT_MODE === "stub") return chatStub(body);
+    const res = await fetch(`${API}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) {
+      let msg = `${res.status} ${res.statusText}`.trim();
+      try { const d = (await res.json()).detail; if (typeof d === "string") msg = d; } catch { /* not JSON */ }
+      const e = new Error(msg);
+      e.status = res.status;
+      throw e;
+    }
+    return res.json();
+  }
+
+  // Answers in the contract's shape from data already on the page; never invents players or alerts.
+  // Trigger words are listed in docs/CHAT_CONTRACT.md §4.
+  async function chatStub(body) {
+    await sleep(700);
+    const q = body.question.toLowerCase(), has = (...w) => w.some((x) => q.includes(x));
+    const ctx = body.context, view = state.view, first = view[0];
+    const open = ctx.alert_id ? state.alerts.find((a) => a.alert_id === ctx.alert_id) : null;
+    const focus = open || first;
+    const base = { provider: "stub", model: "built-in", fallback_used: false, verified: true, unverified_numbers: [],
+                   unknown_ids: [], cases_used: [], actions: [], assumption: null };
+    if (has("error")) { const e = new Error("stub error (HTTP 500)"); e.status = 500; throw e; }
+    if (has("xss")) {
+      return { ...base, answer: `<img src=x onerror="document.title='XSS'"> <script>document.title='XSS'</script> ${focus?.alert_id || ""}`,
+               assumption: "<b>not bold</b>", actions: [{ type: "open_alert", alert_id: "<img src=x onerror=alert(1)>" },
+                                                       { type: "accept", alert_id: focus?.alert_id }] };
+    }
+    if (has("offline")) {
+      return { ...base, provider: null, model: null, fallback_used: true,
+               answer: "The AI assistant is offline: neither Groq nor Ollama answered. The rest of the dashboard works as usual." };
+    }
+    if (has("unknown")) {
+      return { ...base, answer: `P99999 does not appear in the alert data.${focus ? ` ${focus.alert_id} (${focus.player_id}) does.` : ""} ALR-99999 is not a loaded alert either.`,
+               unknown_ids: ["P99999"], cases_used: focus ? [focus.alert_id] : [],
+               actions: [{ type: "open_alert", alert_id: "P99999" }, { type: "open_alert", alert_id: "ALR-99999" },
+                         { type: "apply_filter", filters: { band: "Extreme" } }, { type: "sort", sort: "-nonsense" }] };
+    }
+    if (has("numbers", "unverified")) {
+      return { ...base, verified: false, unverified_numbers: ["48,000", "6"], cases_used: focus ? [focus.alert_id] : [],
+               answer: `Stub test of the number check: ${focus ? focus.alert_id : "this alert"} deposited about $48,000 over 6 weeks.` };
+    }
+    if (has("fallback")) {
+      return { ...base, provider: "ollama", model: "llama3.2", fallback_used: true,
+               answer: `The queue shows ${ctx.visible_count} alerts with the current filters.` };
+    }
+    if (has("recent", "big")) {
+      const end = state.alerts.reduce((m, a) => (a.last_activity > m ? a.last_activity : m), "");
+      const from = end ? new Date(new Date(end.slice(0, 10)).getTime() - 30 * 86400000).toISOString().slice(0, 10) : "";
+      const n = view.filter((a) => a.last_activity && a.last_activity.slice(0, 10) >= from).length;
+      return { ...base, assumption: `Taking 'recent' as the 30 days up to ${end.slice(0, 10) || "the end of the data"}.`,
+               answer: `${n} of the ${view.length} alerts in the current view had activity in that period.` };
+    }
+    if (has("top", "summarise", "summarize")) {
+      const rows = view.slice(0, 3);
+      if (!rows.length) return { ...base, answer: "The current view has no alerts." };
+      return { ...base, cases_used: rows.map((a) => a.alert_id),
+               answer: `Top ${rows.length} alerts in the current view:\n${rows.map((a, i) =>
+                 `${i + 1}. ${a.alert_id} (${a.player_id}), score ${a.score}: ${a.top_reason.title}`).join("\n")}`,
+               actions: [{ type: "open_alert", alert_id: rows[0].alert_id }, { type: "apply_filter", filters: { band: rows[0].band } },
+                         { type: "sort", sort: "-last_activity" }, { type: "show_watchlist" }] };
+    }
+    if (open) {
+      return { ...base, cases_used: [open.alert_id],
+               answer: `${open.alert_id} (${open.player_id}) has a risk score of ${open.score} (${open.band}). Top reason: ${open.top_reason.title}.` };
+    }
+    if (ctx.view === "overview") return { ...base, answer: `You are on the Team overview. The queue behind it shows ${ctx.visible_count} alerts.` };
+    return { ...base, answer: `The queue shows ${ctx.visible_count} alerts with the current filters.${first
+      ? ` The highest-ranked is ${first.alert_id} (${first.player_id}), score ${first.score}.` : ""}`, cases_used: first ? [first.alert_id] : [] };
+  }
+
+  // --- Actions (whitelist only, on click) ---
+
+  function runAction(act) {
+    if (!act) return;
+    if (act.type === "open_alert") {
+      openFromChat(act.alert_id);
+      return;
+    }
+    if (act.type === "apply_filter") {
+      const f = cleanFilters(act.filters);
+      if (!f) return;
+      ["band", "team", "type", "status", "confidence"].forEach((k) => { $(`#f-${k}`).value = f[k] ?? ""; });
+      $("#f-search").value = "";
+      $("#ai-search-result").textContent = "";
+      state.minScore = f.min_score ?? null;
+    } else if (act.type === "sort") {
+      const s = parseSort(act.sort);
+      if (!s) return;
+      setSort(s.key, s.dir);
+    } else if (act.type === "show_watchlist") {
+      state.includeWatchlist = true;
+      $("#f-watchlist").checked = true;
+    } else return;
+    showScreen("queue");
+    applyView();
+    announce(`Queue updated: ${contextLabel(buildContext())}`);
+    if (isOverlay()) setChatCollapsed(true, false);
+  }
+
+  function openFromChat(alertId) {
+    if (!state.alerts.some((a) => a.alert_id === alertId)) return;
+    openLinked(alertId);
+    announce(`Opened ${alertId}`);
+    if (isOverlay()) { setChatCollapsed(true, false); $("#detail").focus(); }
+  }
+
+  // --- Pin to case (POST /alerts/{id}/notes; stubbed with ?chat=stub) ---
+
+  async function notesRequest(alertId, method, body, noteId) {
+    const path = `/alerts/${encodeURIComponent(alertId)}/notes`;
+    if (CHAT_MODE === "stub") {
+      const list = (state.chat.stubNotes[alertId] ||= []);
+      if (method === "POST") {
+        const note = { note_id: `N-${Date.now().toString(36).toUpperCase()}`, alert_id: alertId, ...body, recorded_at: nowStamp() };
+        list.push(note);
+        session.save();
+        return note;
+      }
+      state.chat.stubNotes[alertId] = list.filter((n) => n.note_id !== noteId);
+      session.save();
+      return { note_id: noteId, alert_id: alertId, removed: true };
+    }
+    return method === "POST"
+      ? api(path, { method, body: JSON.stringify(body) })
+      : api(`${path}/${encodeURIComponent(noteId)}?investigator=${encodeURIComponent(body.investigator)}`, { method });
+  }
+
+  function notesError(err, what) {
+    return err.status === 404 || err.status === 405
+      ? `${what}: this API has no notes endpoint yet.` : `${what}: ${err.message}`;
+  }
+
+  function notesFor(a) {
+    const live = Array.isArray(a.notes) ? a.notes : [];
+    return [...live, ...(CHAT_MODE === "stub" ? state.chat.stubNotes[a.alert_id] || [] : [])]
+      .filter((n) => n && typeof n === "object");
+  }
+
+  async function pinAnswer(m, alertId) {
+    m.ui = { ...m.ui, picker: false, msg: "" };
+    if (m.pinned.some((p) => p.alert_id === alertId)) {
+      m.ui.msg = `Already pinned to ${alertId}.`;
+      upsert(m).querySelector(".chat-pin-btn")?.focus();
+      return;
+    }
+    const investigator = $("#investigator").value.trim();
+    if (!investigator) {
+      m.ui.msg = "Enter your name in the Investigator box (top right) first: pinned notes are recorded.";
+      upsert(m);
+      $("#investigator").focus();
+      return;
+    }
+    const d = m.data;
+    try {
+      const note = await notesRequest(alertId, "POST",
+        { question: m.question, answer: d.answer, provider: d.provider, model: d.model, verified: d.verified, investigator });
+      m.pinned.push({ alert_id: alertId, note_id: String(note?.note_id ?? "") });
+      session.save();
+      announce(`Pinned to ${alertId}`);
+      if (state.screen === "alert" && state.openId === alertId) openAlert(alertId, `Pinned an AI note to ${alertId}.`);
+    } catch (err) {
+      m.ui.msg = notesError(err, "Not pinned");
+      announce(m.ui.msg);
+    }
+    upsert(m).querySelector(".chat-pin button, .chat-pin")?.focus();
+  }
+
+  async function removeNote(a, noteId) {
+    const investigator = $("#investigator").value.trim();
+    if (!investigator) {
+      $("#decision-msg").textContent = "Enter your name in the Investigator box (top right) first: removing a note is recorded.";
+      $("#investigator").focus();
+      return;
+    }
+    try {
+      await notesRequest(a.alert_id, "DELETE", { investigator }, noteId);
+      await openAlert(a.alert_id, "Removed the AI note.");
+    } catch (err) {
+      $("#decision-msg").textContent = notesError(err, "Not removed");
+    }
+  }
+
+  // --- Collapse and overlay ---
+
+  function renderUnread() {
+    const n = state.chat.unread, badge = $("#chat-unread");
+    badge.hidden = !n;
+    $("#chat-unread-count").textContent = n > 9 ? "9+" : String(n);
+    $("#chat-unread-text").textContent = n ? ` (${n} new ${n === 1 ? "answer" : "answers"})` : "";
+  }
+
+  function setChatCollapsed(collapsed, focus) {
+    state.chat.collapsed = collapsed;
+    if (!collapsed && state.chat.unread) {
+      state.chat.unread = 0;
+      renderUnread();
+    }
+    $("#chat").dataset.collapsed = String(collapsed);
+    $("#chat-expand").setAttribute("aria-expanded", String(!collapsed));
+    $("#chat-collapse").setAttribute("aria-expanded", String(!collapsed));
+    const modal = !collapsed && isOverlay();  // the overlay covers the work area on narrow screens
+    document.body.classList.toggle("chat-overlay-open", modal);
+    [".topbar", "#banner", "#work"].forEach((s) => { $(s).inert = modal; });
+    if (!isOverlay()) store.set(CHAT_COLLAPSED_KEY, collapsed ? "1" : "");
+    if (focus) (collapsed ? $("#chat-expand") : $("#chat-input")).focus();
+  }
+
+  function focusChat() {
+    if (state.chat.collapsed) setChatCollapsed(false, false);
+    $("#chat-input").focus();
+  }
+
+  function chatReady() {
+    state.chat.ready = true;
+    const saved = session.load();
+    if (saved && Array.isArray(saved.messages)) {
+      if (saved.stubNotes && typeof saved.stubNotes === "object") state.chat.stubNotes = saved.stubNotes;
+      state.chat.messages = saved.messages.flatMap((m) => {
+        if (!m || typeof m !== "object" || typeof m.id !== "string") return [];
+        try {
+          if (m.role === "user" && typeof m.content === "string") {
+            return [{ id: m.id, role: "user", content: m.content.slice(0, 1000), context: m.context && typeof m.context === "object" ? m.context : {},
+                      state: m.state === "done" ? "done" : "interrupted" }];
+          }
+          if (m.role === "assistant") {
+            return [{ id: m.id, role: "assistant", question: String(m.question || ""), data: cleanResponse(m.data),
+                      pinned: Array.isArray(m.pinned) ? m.pinned.filter((p) => p && ALERT_ID.test(p.alert_id)) : [] }];
+          }
+          if (m.role === "divider" && ALERT_ID.test(m.alert_id) && ID_ONE.test(m.player_id)) {
+            return [{ id: m.id, role: "divider", alert_id: m.alert_id, player_id: m.player_id }];
+          }
+          if (m.role === "notice" && typeof m.text === "string") return [{ id: m.id, role: "notice", text: m.text.slice(0, 500) }];
+        } catch { /* drop anything that no longer validates */ }
+        return [];
+      });
+    }
+    const off = chatOff();
+    $("#chat-input").disabled = off;
+    $("#chat-send").disabled = off;
+    $("#chat-input").placeholder = off ? "AI unavailable in offline demo data" : "Ask about the queue or the open case";
+    renderChat();
+    scrollChat();
+    updateChatContext();
+  }
+
+  setChatCollapsed(isOverlay() || store.get(CHAT_COLLAPSED_KEY) === "1", false);
+  OVERLAY.addEventListener("change", () => setChatCollapsed(isOverlay() || store.get(CHAT_COLLAPSED_KEY) === "1", false));
+  renderEmpty();
+
+  $("#chat-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (sendQuestion($("#chat-input").value)) $("#chat-input").value = "";
+  });
+  $("#chat-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      $("#chat-form").requestSubmit();
+    }
+  });
+  $("#chat-new").addEventListener("click", newChat);
+  $("#chat-collapse").addEventListener("click", () => setChatCollapsed(true, true));
+  $("#chat-expand").addEventListener("click", () => setChatCollapsed(false, true));
+  $("#chat").addEventListener("click", (e) => { if (e.target === $("#chat") && isOverlay()) setChatCollapsed(true, true); });
+
+  $("#chat-log").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    const m = state.chat.messages.find((x) => x.id === b.closest("[data-id]")?.dataset.id);
+    if (b.dataset.chatOpen) openFromChat(b.dataset.chatOpen);
+    else if (b.dataset.chatAction != null && m?.role === "assistant") runAction(m.data.actions[Number(b.dataset.chatAction)]);
+    else if (b.dataset.pin && m?.role === "assistant") {
+      if (b.dataset.pin === "start" && state.screen === "alert") { pinAnswer(m, state.openId); return; }
+      if (b.dataset.pin === "confirm") { pinAnswer(m, b.parentElement.querySelector("select").value); return; }
+      m.ui = { picker: b.dataset.pin === "start", msg: "" };
+      upsert(m).querySelector(".chat-pin select, .chat-pin-btn, .chat-pin .btn-link")?.focus();
+    }
+  });
+
   // --- Events ---------------------------------------------------------------------------------
 
   ["#f-band", "#f-team", "#f-type", "#f-status", "#f-confidence"].forEach((s) => $(s).addEventListener("change", applyView));
@@ -1165,16 +2060,27 @@
     applyView();
   });
 
+  $("#nav-back").addEventListener("click", backToQueue);
+  $("#nav-prev").addEventListener("click", () => stepAlert(-1));
+  $("#nav-next").addEventListener("click", () => stepAlert(1));
+
   document.addEventListener("keydown", (e) => {
     const typing = e.target.matches("input, textarea, select");
-    if (e.key === "/" && !typing && state.screen === "queue") {
+    const inChat = $("#chat").contains(e.target);
+    if (e.key.toLowerCase() === "k" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      focusChat();
+    } else if (e.key === "/" && !typing && state.screen === "queue") {
       e.preventDefault();
       $("#f-search").focus();
-    } else if (e.key.toLowerCase() === "d" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    } else if (e.key.toLowerCase() === "d" && !typing && !inChat && state.screen === "alert" &&
+               !e.ctrlKey && !e.metaKey && !e.altKey) {
       const btn = $('[data-act="accept"]');
       if (btn) { e.preventDefault(); btn.focus(); }
-    } else if (e.key === "Escape" && !typing && $("#detail").contains(e.target)) {
-      focusQueue();
+    } else if (e.key === "Escape" && inChat && !state.chat.collapsed && !e.isComposing && !e.target.matches("select")) {
+      setChatCollapsed(true, true);
+    } else if (e.key === "Escape" && !typing && !inChat && state.screen === "alert") {
+      backToQueue();
     }
   });
 
