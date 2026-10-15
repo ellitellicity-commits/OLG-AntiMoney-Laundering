@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets / local config
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node (if any tooling is added)
+node_modules/
+
+# Generated data (recreate by running backend/pipeline/*)
+data/*.csv
+data/**/*.csv
+*.parquet
+
+# Confidential challenge brief: never commit
+*brief*.pdf
