@@ -122,3 +122,5 @@ The **Status** column records what the build used. "Built as" items work but wer
 | 12 | Deployment target (assumed: local laptop demo) | Team lead | `PRODUCT.md` Stack | Built as: local laptop; the API also serves the dashboard at `/app/` |
 | 13 | Dark theme for the dashboard (not needed for MVP) | Frontend owner | `DESIGN.md` §2 | Open (not built) |
 | 14 | Demo length, slide location, submission deadline | Team lead (check ThunderHacks rules) | `WORKFLOW.md` step 8, `docs/DEMO.md` | Open |
+| 15 | `age` vs `age_band` in `players.csv`, and a `province` field (raised by the static mock) | Data owner (step 1) | `docs/API_CONTRACT.md`, `WORKFLOW.md` step 1 | Built as: `age_band`; every home region is in Ontario |
+| 16 | Which design to keep: implemented `DESIGN.md` or the static mock's "Sentinel" (`docs/DESIGN_SENTINEL.md`, `frontend/mock_frontend.html`); also 4 vs 3 risk bands | Frontend owners together | `DESIGN.md` | Open: the live dashboard uses `DESIGN.md` and 4 bands |
