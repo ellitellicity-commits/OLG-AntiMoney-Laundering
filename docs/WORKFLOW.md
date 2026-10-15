@@ -21,7 +21,7 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 **Outputs:**
 | File | Contents (minimum columns) |
 |---|---|
-| `data/synthetic/players.csv` | `player_id, age_band, occupation, income_band, home_region, signup_date` |
+| `data/synthetic/players.csv` | `player_id, age_band, occupation, income_band, home_region, signup_date`. The static mock also shows `initials`, exact `age` and `province`; see [API_CONTRACT.md](API_CONTRACT.md) and HANDOFF open item #15 |
 | `data/synthetic/transactions.csv` | `txn_id, player_id, timestamp, type (deposit / withdrawal / bet / payout), amount_cad, sport, market, odds, channel (web / app / retail), device_id, ip_region, payment_method_id` |
 | `data/synthetic/linked_identifiers.csv` | `player_id, identifier_type (device / payment_method / address), identifier_value`, used for network analysis |
 | `data/synthetic/scenario_labels.csv` | `player_id, scenario, start_date, end_date`: the ground truth for validation |
@@ -137,6 +137,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **What to build:** a FastAPI service that reads the step 3 outputs and serves them to the dashboard.
 
+**Response shapes:** the pydantic models in `backend/app/schemas.py` (browsable at `/docs`) are the reference. [API_CONTRACT.md](API_CONTRACT.md) is the earlier proposal behind the static mock and maps its fields onto the implemented API.
+
 **Endpoints (draft):**
 | Method | Path | Returns |
 |---|---|---|
@@ -168,9 +170,9 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **What to build:** the investigator UI described in `DESIGN.md`: alert queue, player detail panel, "why flagged" list, peer comparison chart and recommended action with decision buttons.
 
-**Inputs:** the API from step 5 (or `frontend/mock/alerts.json` while the API is in progress).
+**Inputs:** the API from step 5 (or `frontend/mock/alerts.json` while the API is down). `frontend/mock_frontend.html` is an alternative static design (see `docs/DESIGN_SENTINEL.md`, open item #16).
 
-**Outputs:** `frontend/index.html`, `frontend/styles.css`, `frontend/app.js`.
+**Outputs:** the live dashboard `frontend/index.html` (with `frontend/styles.css` and `frontend/app.js`), served by the API at `/app/`. `frontend/mock_frontend.html` is a separate static mock.
 
 **Tool / library:** plain HTML/CSS/JS with `fetch()`. Chart: hand-built SVG or Chart.js (**TBD**). Fonts: IBM Plex Sans / Mono.
 

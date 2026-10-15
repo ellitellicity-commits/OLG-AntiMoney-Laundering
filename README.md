@@ -89,7 +89,7 @@ Optional settings in `.env`: `LLM_PROVIDER=ollama|groq|gemini|none` (default `au
 ├── requirements.txt        # Python dependencies (repo root)
 ├── .gitignore
 ├── PRODUCT.md              # who it's for, goals, success criteria
-├── DESIGN.md               # visual direction for the dashboard
+├── DESIGN.md               # visual direction for the dashboard (implemented)
 ├── run_demo.ps1 / run_demo.sh  # one-command demo: venv, pipeline, API, dashboard
 ├── docs/
 │   ├── HANDOFF.md          # start here
@@ -125,6 +125,8 @@ Everything in `data/` (`.csv`, `.parquet`, `.json`) is generated and git-ignored
 | [docs/SCOPE.md](docs/SCOPE.md) | MVP vs stretch, how each requirement is demonstrated, what we're not building |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Build order with inputs, outputs, tools, owners and "done when" for each step |
 | [DESIGN.md](DESIGN.md) | Design direction: colours, type, spacing, risk badges, components |
+| [docs/DESIGN_SENTINEL.md](docs/DESIGN_SENTINEL.md) | Alternative "Sentinel" design from the static mock (`frontend/mock_frontend.html`); not yet adopted |
+| [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Field proposal behind the static mock, with a mapping to the implemented API |
 | [docs/PROMPTS.md](docs/PROMPTS.md) | Log of AI prompts used, per build step |
 | [docs/VALIDATION.md](docs/VALIDATION.md) | Measured recall, precision@k and false positives (generated) |
 | [docs/DEMO.md](docs/DEMO.md) | Demo talk track, click path and showcase alerts |
