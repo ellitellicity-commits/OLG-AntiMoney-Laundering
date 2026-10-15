@@ -1,141 +1,363 @@
-# Design Direction — DRAFT
+---
+name: Sentinel
+description: Case-file review dashboard for sports-betting AML, Fraud and Safer Gambling investigators.
+colors:
+  paper: "#F4F0E6"
+  paper-2: "#EAE4D5"
+  card: "#FBF8F1"
+  rule: "#D6CDB9"
+  rule-strong: "#B9AE95"
+  ink: "#1B2333"
+  ink-2: "#4A5265"
+  navy: "#16213A"
+  navy-ink: "#F4F0E6"
+  accent: "#2F55A4"
+  accent-soft: "#E1E7F3"
+  low: "#1F7A72"
+  low-soft: "#DCEBE7"
+  low-ink: "#155E57"
+  medium: "#C98D1C"
+  medium-soft: "#F3E3BF"
+  medium-ink: "#7A4F00"
+  high: "#B23A27"
+  high-soft: "#F5DAD2"
+  high-ink: "#9A2E1E"
+  night-paper: "#10151F"
+  night-card: "#18202E"
+  night-ink: "#ECE6D8"
+  night-ink-2: "#A9B1C0"
+  night-accent: "#8EB0F2"
+  night-low: "#5CC3B5"
+  night-medium: "#E4B04F"
+  night-high: "#F08A74"
+typography:
+  display-numeral:
+    fontFamily: "Source Serif 4, Georgia, serif"
+    fontSize: "48px"
+    fontWeight: 600
+    lineHeight: 1
+    letterSpacing: "-0.03em"
+  case-title:
+    fontFamily: "Source Serif 4, Georgia, serif"
+    fontSize: "30px"
+    fontWeight: 600
+    lineHeight: "36px"
+    letterSpacing: "-0.02em"
+  section-heading:
+    fontFamily: "Source Serif 4, Georgia, serif"
+    fontSize: "19px"
+    fontWeight: 600
+    lineHeight: "24px"
+    letterSpacing: "-0.01em"
+  body:
+    fontFamily: "IBM Plex Sans, system-ui, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: "20px"
+  label:
+    fontFamily: "IBM Plex Sans, system-ui, sans-serif"
+    fontSize: "11px"
+    fontWeight: 600
+    letterSpacing: "0.05em"
+  figure:
+    fontFamily: "IBM Plex Mono, ui-monospace, monospace"
+    fontSize: "13px"
+    fontWeight: 500
+rounded:
+  sm: "2px"
+  md: "4px"
+spacing:
+  s-1: "4px"
+  s-2: "8px"
+  s-3: "12px"
+  s-4: "16px"
+  s-5: "24px"
+  s-6: "32px"
+  s-7: "48px"
+components:
+  button-primary:
+    backgroundColor: "{colors.accent}"
+    textColor: "#FFFFFF"
+    rounded: "{rounded.md}"
+    height: "36px"
+    padding: "0 16px"
+  button-secondary:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.md}"
+    height: "36px"
+    padding: "0 16px"
+  badge-high:
+    backgroundColor: "{colors.high-soft}"
+    textColor: "{colors.high-ink}"
+    rounded: "{rounded.md}"
+    height: "24px"
+  badge-medium:
+    backgroundColor: "{colors.medium-soft}"
+    textColor: "{colors.medium-ink}"
+    rounded: "{rounded.md}"
+    height: "24px"
+  badge-low:
+    backgroundColor: "{colors.low-soft}"
+    textColor: "{colors.low-ink}"
+    rounded: "{rounded.md}"
+    height: "24px"
+  sheet:
+    backgroundColor: "{colors.card}"
+    rounded: "{rounded.md}"
+    padding: "24px"
+  masthead:
+    backgroundColor: "{colors.navy}"
+    textColor: "{colors.navy-ink}"
+    height: "60px"
+---
 
-> **Pre-build draft.** Nothing is built yet. This file sets a starting direction so the dashboard can be built consistently. Once the frontend exists, regenerate this file from the real code with `/impeccable document`, which will replace this draft.
->
-> Product context lives in [PRODUCT.md](PRODUCT.md). If the two conflict, PRODUCT.md wins.
+# Design System: Sentinel
 
-## 1. Direction in one line
+> **Source of truth:** this file describes what is **actually built** in `frontend/mock_frontend.html`, the static design mock (updated 2026-10-15 after an `/impeccable critique` pass).
+> - **Live dashboard:** the real one will be a separate `frontend/index.html` (build step 6). It should reuse these tokens and components.
+> - **Regenerate:** once that live frontend exists, regenerate this file from the real code with `/impeccable document`.
+> - **Precedence:** product context lives in [PRODUCT.md](PRODUCT.md), and wins on any conflict.
+> - **Draft placeholder:** "Sentinel" is a neutral placeholder name. The mock deliberately uses no real OLG, Ontario or Canada branding.
 
-**A case file, not a casino.** It should feel like a well-kept regulatory ledger: quiet paper-white surfaces, dark ink text, one restrained institutional blue for interaction, and colour reserved for risk. Numbers are set in a monospaced face so investigators can compare them at a glance.
+## Overview
 
-**Avoid:** casino gold, neon, chips or card motifs; purple/blue AI gradients; glassmorphism; glowing cards; big vanity KPI tiles; emoji; sparkle icons for AI features.
+**A case file, not a casino.** The investigator reads a dossier the way they would read a paper case file:
+- **Docket and case file:** a ranked docket of alerts sits on the left, and one open case file on the right.
+- **Score and stamp:** the case file has a big serif score and an inked status stamp.
+- **Evidence thread:** the evidence is laid out as a thread whose points add up exactly to the score.
 
-## 2. Colour palette (light theme, default)
+The tone is calm, serious and evidence-first. Warm paper surfaces with a faint grain, ink-navy masthead and ink text. Colour is reserved for risk, and one slate-blue accent marks the interactive things.
 
-| Token | Hex | Role |
-|---|---|---|
-| `--paper` | `#F6F5F1` | Page background (warm off-white, easy on the eyes over long sessions) |
-| `--surface` | `#FFFFFF` | Panels, table rows, cards |
-| `--surface-sunk` | `#EDECE7` | Table header, selected-row background, input wells |
-| `--rule` | `#D5D3CC` | Borders, dividers, table lines |
-| `--ink` | `#1A1D21` | Primary text |
-| `--ink-muted` | `#545A62` | Secondary text, labels, timestamps (≈7:1 on white) |
-| `--accent` | `#1F4E79` | Links, focus ring, primary buttons, selected state. The **only** interaction colour |
-| `--accent-ink` | `#FFFFFF` | Text on `--accent` |
-| `--focus` | `#1F4E79` | 2px focus outline + 2px offset |
-| `--evidence` | `#2F5D50` | Optional marker for "computed evidence" values; never used for risk |
+**Signature moment:** selecting a case re-inks the dossier. The score counts up and the ring fills in about 260ms.
 
-**Risk colours.** Used **only** for risk. Never decorative, never the only signal.
+**Two themes:**
+- **Day** (default) is warm paper.
+- **Night shift** is a separately designed dark theme, not an inversion: deep blue-black paper, warm off-white ink, and risk colours re-tuned for dark ground.
 
-| Band | Score | Badge fill | Badge text | Secondary signal |
-|---|---|---|---|---|
-| Low | 0–39 | `#E4E6E9` | `#1A1D21` | 1 of 4 meter segments filled |
-| Medium | 40–69 | `#E8B84A` | `#1A1D21` | 2 of 4 segments |
-| High | 70–89 | `#B4500F` | `#FFFFFF` | 3 of 4 segments |
-| Critical | 90–100 | `#8E1B1B` | `#FFFFFF` | 4 of 4 segments + bold label |
+## Colors
 
-Band thresholds are **TBD**: these are a draft and will be tuned in the validation step.
+All colours are CSS custom properties on `:root`. Night shift overrides them under `:root[data-theme="night"]`.
 
-All text/fill pairs above are intended to meet WCAG AA (4.5:1). Re-check them with a contrast tool once implemented.
+### Primary
+- **Accent `#2F55A4`** (night `#8EB0F2`): the only UI accent. Use it for the primary button, the selected queue row border, focus rings, the team label and the text-selection highlight. Never use it for risk.
 
-**Dark theme:** TBD (not needed for the MVP demo).
-
-## 3. Typography
-
-| Use | Font | Size / line-height | Weight |
+### Neutral
+| Token | Day | Night | Role |
 |---|---|---|---|
-| Page title | IBM Plex Sans | 22px / 28px | 600 |
-| Section heading | IBM Plex Sans | 16px / 22px | 600 |
-| Body, table text | IBM Plex Sans | 14px / 20px | 400 |
-| Labels, captions | IBM Plex Sans | 12px / 16px | 500, letter-spacing 0.02em |
-| Scores, amounts, IDs, dates | IBM Plex Mono | same size as context | 500, `font-variant-numeric: tabular-nums` |
+| `--paper` | `#F4F0E6` | `#10151F` | Page ground, reason cards |
+| `--paper-2` | `#EAE4D5` | `#0C1018` | Queue column (sunk) |
+| `--card` | `#FBF8F1` | `#18202E` | Dossier sheets (with grain) |
+| `--rule` / `--rule-strong` | `#D6CDB9` / `#B9AE95` | `#2A3446` / `#3B475C` | Borders, dividers, control outlines |
+| `--ink` | `#1B2333` | `#ECE6D8` | Primary text |
+| `--ink-2` | `#4A5265` | `#A9B1C0` | Secondary text (≥ 6.1:1 in both themes) |
+| `--navy` | `#16213A` | `#0A0E16` | Masthead |
 
-- Load from Google Fonts (`IBM Plex Sans` 400/500/600, `IBM Plex Mono` 500), with system-ui / ui-monospace as fallbacks.
-- Currency is always CAD with explicit format: `$12,450.00`.
-- Dates use ISO style in tables (`2026-03-14 21:07`) for unambiguous sorting.
+### Risk (only ever used for risk)
+| Band | Score | Solid | Soft fill | Ink (text) | Night solid |
+|---|---|---|---|---|---|
+| Low | 0–39 | `#1F7A72` teal | `#DCEBE7` | `#155E57` | `#5CC3B5` |
+| Medium | 40–69 | `#C98D1C` amber | `#F3E3BF` | `#7A4F00` | `#E4B04F` |
+| High | 70–100 | `#B23A27` coral-red | `#F5DAD2` | `#9A2E1E` | `#F08A74` |
 
-## 4. Spacing scale
+Three bands, as set by the dashboard brief. Cut-offs are a draft until validation (WORKFLOW step 4).
 
-4px base. Use only these values:
+### Named rules
+- **Colour is never alone.** Every risk colour comes with a number, a text label and a bar-count shape.
+- **Measured contrast:** every text pair measured AA in both themes, at both 1280px and 390px. The lowest was the badge text at 5.6:1.
 
-`--s-1: 4px` · `--s-2: 8px` · `--s-3: 12px` · `--s-4: 16px` · `--s-5: 24px` · `--s-6: 32px` · `--s-7: 48px`
+## Typography
 
-- Table row height: 40px (dense) / 48px (default).
-- Panel padding: 16px. Gap between panels: 16px.
-- Radius: 4px on controls and badges, 6px on panels. No pill-shaped cards.
-- Shadows: none, or a single 1px border. Depth comes from `--rule` lines and `--surface-sunk`.
+| Role | Face | Size / line | Weight |
+|---|---|---|---|
+| Score numeral (ring) | Source Serif 4 | 48px / 1 | 600, −0.03em |
+| Case title | Source Serif 4 | 30px / 36px | 600 |
+| Brand name | Source Serif 4 | 22px / 28px | 700 |
+| Sheet heading | Source Serif 4 | 19px / 24px | 600 |
+| Reason headline | Source Serif 4 | 16px / 22px | 600 |
+| Body / UI | IBM Plex Sans | 14px / 20px | 400–500 |
+| Secondary text | IBM Plex Sans | 13px | 400 |
+| Labels (uppercase) | IBM Plex Sans | 11–12px | 600, +0.04–0.05em |
+| IDs, scores, points, figures | IBM Plex Mono | 12–18px | 500 |
 
-## 5. Risk badge system
+- Fonts load from Google Fonts. Fallbacks: Georgia, system-ui and ui-monospace.
+- All text uses `tabular-nums`.
+- Money is formatted `$14,850` (en-CA).
+- The smallest text is 11px: uppercase labels and chart axes.
 
-A risk badge **always** contains three things:
+## Layout
 
 ```
-[ 87  HIGH  ▮▮▮▯ ]
-  │    │     └─ 4-segment meter (shape signal, readable without colour)
-  │    └─ text label, uppercase, 12px/500
-  └─ score 0–100, IBM Plex Mono, tabular
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Masthead (navy): mark · Sentinel · SYNTHETIC tag · ● Monitoring · Night   │
+├──────────────────────────────────────────────────────────────────────────┤
+│ Ribbon: "8 open alerts" · [3 HIGH] [3 MEDIUM] [2 LOW] · proportion bar   │
+├──────────────────────┬───────────────────────────────────────────────────┤
+│ ALERT QUEUE          │ DOSSIER (max 1040px, scrolls on its own)          │
+│ 360–420px, scrolls   │ case header: case no · Player ID · stamp · 3 btns │
+│ search + 3 filters   │ [Risk score ring] [Recommended action + buttons]  │
+│ ranked rows          │ Why flagged (evidence thread)                     │
+│                      │ Compared with peers (log strip plot)              │
+│                      │ [30-day activity] [Locations]                     │
+│                      │ Linked players                                    │
+└──────────────────────┴───────────────────────────────────────────────────┘
 ```
 
-- Sizes: **compact** (in the queue table, 24px high) and **large** (player detail header, 40px high).
-- Screen-reader text: "Risk score 87 out of 100, High."
-- Never show a coloured dot or coloured row on its own without the badge.
+- **≥ 901px:** the page is fixed to the viewport, and the queue and dossier scroll independently.
+- **≤ 1180px:** the dossier's two-column rows stack.
+- **≤ 900px:** single column. The queue sits on top (max 420px tall, scrolls), with the dossier below. Tapping a row scrolls the page to the dossier.
+- **≤ 560px:** the brand subtitle and scan time hide, and buttons wrap to full width. No horizontal overflow at 390px.
+- **Spacing:** a 4px scale (`--s-1` 4px … `--s-7` 48px). Sheet padding is 24px (16px on mobile), and the gap between sheets is 16px.
 
-## 6. Layout
+## Elevation & Depth
 
-Single-page desktop dashboard, minimum width 1280px for the demo. Mobile is not a goal.
+Depth comes from tone and hairlines, not shadows.
+- **Sheets:** 1px `--rule` border on `--card`, with a faint SVG paper-grain texture (`--grain`). The grain is quieter in night mode.
+- **Reason cards:** sit on `--paper` inside the sheet, a darker inset.
+- **Shadow:** only the **selected queue row** has one (`0 1px 2px` + `0 4px 14px`, at 6% ink).
 
-```
-┌───────────────────────────────────────────────────────────────────────┐
-│ Header: product name · "SYNTHETIC DATA" tag · filters · search        │
-├──────────────────────────┬────────────────────────────────────────────┤
-│ ALERT QUEUE (≈40%)       │ PLAYER DETAIL PANEL (≈60%)                 │
-│ ranked table             │ header: player ID, peer group, risk badge  │
-│                          │ Why flagged (reason list)                  │
-│                          │ Peer comparison chart                      │
-│                          │ Activity timeline / transactions           │
-│                          │ Linked players (stretch)                   │
-│                          │ Recommended action + decision buttons      │
-└──────────────────────────┴────────────────────────────────────────────┘
-```
+## Shapes
 
-## 7. Components
+- **Radius:** 4px on controls, badges and sheets; 2px on tags; 50% on avatars and the ring. No pills.
+- **Rubber stamp:** 3px double border, rotated −3°.
+- **Meter:** 4 rising bars of 5/7/9/12px.
 
-### 7.1 Alert queue
-- Table columns: **Risk badge** · **Player ID** · **Top reason** (one line) · **Team** (AML / Fraud / Safer Gambling) · **Anomaly types** (text tags) · **Last activity** · **Status** (New / In review / Escalated / Closed).
-- Default sort: risk score, descending. Sortable by every column.
-- Filters: band, team, anomaly type, status.
-- Keyboard: ↑/↓ moves the selection, Enter opens the alert, `/` focuses search.
-- Selected row: `--surface-sunk` background + 3px `--accent` left border.
+## Components
 
-### 7.2 Player detail panel
-- Header: player ID, age band, occupation, income band, home region, peer group name, account age, large risk badge.
-- All profile values come from synthetic data. Show the "SYNTHETIC" tag.
+### Masthead
+Navy bar containing:
+- **Mark:** a framed eye with a teal slit, drawn as original SVG.
+- **Name:** "Sentinel" in serif.
+- **Subtitle:** "Sports betting · Case review".
+- **Tag:** an outlined `SYNTHETIC DATA · STATIC MOCK` tag in mono.
+- **Monitoring indicator:** a teal dot whose ring expands in about 290ms every 2.4s, plus the last-scan time.
+- **Night shift toggle:** a `role="switch"` button.
 
-### 7.3 "Why flagged" list
-- Ordered by contribution to the score.
-- Each item has: **reason title** (plain English), **evidence line** (the actual numbers), **comparison** (vs own baseline and/or vs peer median), **contribution** (points added to the score), **anomaly type tag**.
-- Example:
-  > **Deposits far above declared income** — $18,400 deposited in 30 days; declared income band $40–60k/yr. Peer median: $620. **+28 pts** · Income mismatch
-- If SHAP is used, its top features map onto these same reason items. Raw SHAP plots are not shown to investigators.
-- Optional LLM summary sits **above** the list, labelled "Summary generated from the evidence below", and is never shown without the list.
+### Band ribbon
+- **Total:** "N open alerts".
+- **Band counts:** one box per band with a serif count and a coloured uppercase label.
+- **Proportion bar:** one 8px bar split by band.
+- **Placeholder note:** "Filters, search and case buttons are placeholders in this mock."
 
-### 7.4 Peer comparison chart
-- Horizontal dot/strip plot per metric (e.g., 30-day deposits, average stake, bets per day, distinct locations).
-- Show the peer-group distribution (median + interquartile band in grey), the player's own 90-day baseline (hollow marker) and the player's current value (solid marker in `--ink`).
-- Value labels printed next to markers. No reliance on colour.
-- Library: hand-built SVG or Chart.js (**TBD**).
+### Alert queue row
+A full-width `<button>`, ranked by score. It contains:
+- **Avatar:** initials in a circle.
+- **ID and status:** player ID in mono, plus an outlined status tag.
+- **Reason:** the top reason headline on one line, cut off with an ellipsis.
+- **Risk badge:** at the right.
+- **Heat strip:** a 30-day strip with one cell per day; darker means more wagered.
 
-### 7.5 Recommended action
-- One primary recommendation with its rationale, e.g. "Request source of funds: deposits exceed income band by 30×."
-- Buttons: **Accept recommendation** (primary, `--accent`), **Escalate**, **Close as explained** (requires a short reason), **Assign to team**.
-- Decisions are written back to the API / Jube case.
+States:
+- **Hover:** card background.
+- **Selected (`aria-current="true"`):** card background, 1px accent border, soft shadow and an accent-tinted avatar.
 
-### 7.6 Supporting components (MVP)
-Filter bar, status tag, anomaly-type tag (text, neutral outline), "SYNTHETIC DATA" tag, empty state ("No alerts match these filters"), loading state (skeleton rows), and error state (plain message + retry).
+### Risk badge
+Always three parts: **score (mono) + band label (uppercase) + 4-bar meter**. Screen-reader label: "Risk score 91 out of 100, High".
 
-### 7.7 Stretch components
-Linked-players network view (node-link graph of shared devices/payment methods/addresses), activity timeline, case notes.
+The meter is driven by the **band, not the raw score**:
 
-## 8. Motion
+| Band | Bars filled |
+|---|---|
+| Low | 1 |
+| Medium | 2 |
+| High | 3 |
+| High, score 90 or more | 4 |
 
-Minimal. 120–160ms ease-out for panel content changes and row selection. No decorative animation. Respect `prefers-reduced-motion`.
+### Status stamp
+Double-bordered, rotated, mono uppercase. Colour by status (text is always present):
+
+| Status | Colour |
+|---|---|
+| Escalated | high-ink |
+| In review | accent |
+| Awaiting info | medium-ink |
+| New | ink-2 |
+
+### Case header
+- **Top line:** case number (`Case SNT-2026-10482`, mono).
+- **Title:** "Player P-10482", serif 30px, `tabindex=-1`. Focus moves here when a row is clicked.
+- **Stamp:** the status stamp sits beside the title.
+- **Meta line:** age, occupation, income band, province.
+- **Buttons:** **Escalate**, **Request info** and **Dismiss** at the right, all in secondary weight (Dismiss is quiet and underlined). None of them is the primary action. Placeholders in the mock.
+
+### Risk score sheet
+- **Ring:** 132px with a 10px stroke in the band colour. It fills over 280ms while the serif numeral counts up over 260ms.
+- **Band text:** "High risk" in serif, in the band's ink colour.
+- **Meter:** a large meter and "91 out of 100".
+- **Tags:** neutral outlined anomaly-type tags.
+
+### Recommended action sheet
+- **Action:** heading "Recommended action", then the action in serif 22px.
+- **Team:** "AML TEAM" in uppercase accent.
+- **Rationale:** the reason for the recommendation.
+- **The page's one primary button:** it is labelled with the recommended action itself (e.g. "Request source of funds", "No action — keep monitoring"). Next to it is a quiet "Override with reason" button.
+- **Footnote:** "A recommendation, not a decision…".
+
+### Evidence thread ("Why flagged")
+- **Order:** reasons are ordered by points, highest first, on a vertical 1px thread with ring nodes.
+- **Each reason card:**
+  - an uppercase type label,
+  - a serif headline,
+  - an evidence sentence with real figures,
+  - "+36 points" in mono, with a bar relative to the strongest reason.
+- **Sum line:** "4 reasons · points total 91 = risk score 91".
+
+### Peer strip plot ("Compared with peers")
+- **Plot:** inline SVG on a log scale from $100 to $30k. A shaded band runs up to the peer 90th percentile, with a solid tick at the peer median, a dashed tick at p90, and the player as a labelled ink diamond.
+- **Below the plot:** a legend, plus mono ratios ("47.9× the peer median").
+- **Rendering:** charts are drawn at their measured pixel width, so labels stay 11px at every size.
+
+### 30-day activity chart
+- **Bars:** 30 daily bars of amount wagered. The last 7 days are solid ink and earlier days 55% ink.
+- **Baseline:** a dashed accent line at the first-half daily average.
+- **Axes:** gridlines at 0, half and max, and date labels Sep 15 / Sep 30 / Oct 14.
+
+### Locations
+- **Each row:** region, mono count and a bar.
+- **Flag:** "In province" (ink-2) or "Outside province" (high-ink, with a coral bar).
+
+### Linked players
+- **Each row:** avatar, ID, how they are linked (shared device or card) and the linked player's badge.
+- **Empty state:** "No linked players found. Shared devices, payment methods and addresses were checked."
+
+### Placeholders (visual only in the mock)
+Search field, Band/Type/Status filter chips, and all case and decision buttons.
+
+## Motion
+
+| Motion | Duration | Easing |
+|---|---|---|
+| Score count-up | 260ms | ease-out cubic |
+| Ring fill | 280ms | `cubic-bezier(.16,1,.3,1)` |
+| Toggle thumb | 200ms | same curve |
+| Row and button hover | 140ms | ease-out |
+| Monitoring pulse (expansion phase of a 2.4s loop) | ~290ms | same curve |
+
+Under `prefers-reduced-motion: reduce`, every transition and animation is switched off and the final state is shown immediately.
+
+## Do's and Don'ts
+
+### Do:
+- Show risk as number + label + meter, every time.
+- Tie every score to reasons whose points add up to it.
+- Label every demo screen as synthetic.
+- Make the recommended action the primary button. Keep enforcement actions (Escalate, Dismiss) secondary.
+- Open each case at its header.
+
+### Don't:
+- Use risk colours for decoration, or the accent for risk.
+- Use casino motifs (gold, neon, chips), AI-dashboard gradients, glass, glows or KPI tile walls.
+- Use real OLG, Ontario or Canada branding or logos.
+- Add motion longer than 300ms, or any motion that ignores reduced-motion.
+
+## Known gaps (from the 2026-10-15 critique, not yet fixed)
+
+1. **Queue throughput.**
+   - No arrow-key or shortcut navigation, though PRODUCT.md asks for keyboard navigation.
+   - Rows show no alert age or assigned team.
+   - The heat strip has no label.
+2. **Evidence cards are nested.** The cards sit inside the bordered sheet, which the detector flags as "card inside card". Consider unboxed rows separated by rules.
+3. **The score sheet repeats itself.** It states the score four ways and pushes "Why flagged" partly below the fold at 1440×900.
+4. **Night shift masthead blends in.** It barely separates from the ribbon.
+5. **Linked players are plain text.** They are not clickable through to their case.
+6. **Safer Gambling context is missing.** Cases have no prior-interventions or limits history, which SG cases need.

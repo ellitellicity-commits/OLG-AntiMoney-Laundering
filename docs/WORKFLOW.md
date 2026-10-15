@@ -21,7 +21,7 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 **Outputs:**
 | File | Contents (minimum columns) |
 |---|---|
-| `data/synthetic/players.csv` | `player_id, age_band, occupation, income_band, home_region, signup_date` |
+| `data/synthetic/players.csv` | `player_id, age_band, occupation, income_band, home_region, signup_date`. The dashboard also shows `initials`, exact `age` and `province`; see [API_CONTRACT.md](API_CONTRACT.md) (open item: age vs age band) |
 | `data/synthetic/transactions.csv` | `txn_id, player_id, timestamp, type (deposit / withdrawal / bet / payout), amount_cad, sport, market, odds, channel (web / app / retail), device_id, ip_region, payment_method_id` |
 | `data/synthetic/linked_identifiers.csv` | `player_id, identifier_type (device / payment_method / address), identifier_value`, used for network analysis |
 | `data/synthetic/scenario_labels.csv` | `player_id, scenario, start_date, end_date`: the ground truth for validation |
@@ -129,6 +129,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **What to build:** a FastAPI service that reads the step 3 outputs and serves them to the dashboard.
 
+**Response shapes:** [API_CONTRACT.md](API_CONTRACT.md) is the reference for the fields the dashboard needs and the three endpoints it calls first (`GET /summary`, `GET /alerts`, `GET /players/{id}`).
+
 **Endpoints (draft):**
 | Method | Path | Returns |
 |---|---|---|
@@ -158,9 +160,9 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **What to build:** the investigator UI described in `DESIGN.md`: alert queue, player detail panel, "why flagged" list, peer comparison chart and recommended action with decision buttons.
 
-**Inputs:** the API from step 5 (or `frontend/mock/alerts.json` while the API is in progress).
+**Inputs:** the API from step 5, plus the static design mock `frontend/mock_frontend.html` (already built) as the visual reference. Reuse its markup, CSS tokens and rendering code. Until the API is ready, the hardcoded data in the mock stands in for it.
 
-**Outputs:** `frontend/index.html`, `frontend/styles.css`, `frontend/app.js`.
+**Outputs:** the live dashboard `frontend/index.html` (with `frontend/styles.css` and `frontend/app.js`). This is a separate file from `frontend/mock_frontend.html`, which stays as the static design reference.
 
 **Tool / library:** plain HTML/CSS/JS with `fetch()`. Chart: hand-built SVG or Chart.js (**TBD**). Fonts: IBM Plex Sans / Mono.
 

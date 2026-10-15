@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel — Case Review (static mock)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+/* ===== Tokens: Day (default) ===== */
+:root {
+  --font-serif: "Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
+  --radius: 4px;
+  --header-h: 60px;
+
+  --paper: #F4F0E6;          /* page ground */
+  --paper-2: #EAE4D5;        /* sunk: queue column, wells */
+  --card: #FBF8F1;           /* dossier sheets */
+  --rule: #D6CDB9;
+  --rule-strong: #B9AE95;
+  --ink: #1B2333;            /* ink navy text */
+  --ink-2: #4A5265;          /* secondary text */
+  --navy: #16213A;           /* header */
+  --navy-ink: #F4F0E6;
+  --navy-ink-2: #C3C9D6;
+  --accent: #2F55A4;         /* the one UI accent */
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E1E7F3;
+  --focus: #2F55A4;
+
+  --low: #1F7A72;   --low-soft: #DCEBE7;   --low-ink: #155E57;
+  --med: #C98D1C;   --med-soft: #F3E3BF;   --med-ink: #7A4F00;
+  --high: #B23A27;  --high-soft: #F5DAD2;  --high-ink: #9A2E1E;
+
+  --heat: #1B2333;
+  --track: #E2DACA;
+  --shadow: 0 1px 2px rgba(27, 35, 51, .06), 0 4px 14px rgba(27, 35, 51, .06);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .18 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+
+/* ===== Tokens: Night shift (designed, not inverted) ===== */
+:root[data-theme="night"] {
+  --paper: #10151F;
+  --paper-2: #0C1018;
+  --card: #18202E;
+  --rule: #2A3446;
+  --rule-strong: #3B475C;
+  --ink: #ECE6D8;
+  --ink-2: #A9B1C0;
+  --navy: #0A0E16;
+  --navy-ink: #ECE6D8;
+  --navy-ink-2: #A9B1C0;
+  --accent: #8EB0F2;
+  --accent-ink: #0C1220;
+  --accent-soft: #1E2B45;
+  --focus: #8EB0F2;
+
+  --low: #5CC3B5;   --low-soft: #14302D;  --low-ink: #8FE0D4;
+  --med: #E4B04F;   --med-soft: #382A10;  --med-ink: #F2CB7A;
+  --high: #F08A74;  --high-soft: #3D1E19; --high-ink: #FFB3A3;
+
+  --heat: #ECE6D8;
+  --track: #263044;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .92 0 0 0 0 .85 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+
+/* ===== Base ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+::selection { background: var(--accent); color: var(--accent-ink); }
+* { scrollbar-color: var(--rule-strong) transparent; scrollbar-width: thin; }
+h1, h2, h3 { margin: 0; font-family: var(--font-serif); font-weight: 600; letter-spacing: -0.01em; }
+p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+button { font: inherit; color: inherit; }
+.mono { font-family: var(--font-mono); font-weight: 500; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+#case-title:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius); }
+
+/* ===== Header ===== */
+.masthead {
+  background: var(--navy);
+  color: var(--navy-ink);
+  min-height: var(--header-h);
+  display: flex; align-items: center; gap: var(--s-5);
+  padding: var(--s-2) var(--s-5);
+  flex-wrap: wrap;
+}
+.masthead :focus-visible { outline-color: var(--navy-ink); }
+.brand { display: flex; align-items: center; gap: var(--s-3); margin-right: auto; }
+.brand svg { flex: none; }
+.brand-name { font-family: var(--font-serif); font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; }
+.brand-sub { color: var(--navy-ink-2); font-size: 13px; padding-left: var(--s-3); border-left: 1px solid rgba(255,255,255,.18); }
+.tag-synthetic {
+  font-family: var(--font-mono); font-size: 11px; line-height: 16px; letter-spacing: .06em; text-transform: uppercase;
+  border: 1px solid var(--navy-ink-2); color: var(--navy-ink); padding: 2px 8px; border-radius: 2px;
+}
+.monitor { display: flex; align-items: center; gap: var(--s-2); color: var(--navy-ink-2); font-size: 13px; }
+.monitor strong { color: var(--navy-ink); font-weight: 500; }
+.pulse { position: relative; width: 10px; height: 10px; flex: none; }
+.pulse::before, .pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #5CC3B5; }
+.pulse::after { animation: pulse 2.4s cubic-bezier(.16, 1, .3, 1) infinite; }
+@keyframes pulse {
+  0%   { transform: scale(1);   opacity: .7; }
+  12%  { transform: scale(2.4); opacity: 0; }   /* the expansion itself lasts ~290ms */
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.switch {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  background: none; border: 0; padding: var(--s-1) var(--s-2); cursor: pointer; color: var(--navy-ink);
+  font-size: 13px; font-weight: 500; border-radius: var(--radius);
+}
+.switch-track {
+  width: 34px; height: 20px; border-radius: 10px; background: rgba(255,255,255,.16);
+  border: 1px solid rgba(255,255,255,.35); position: relative; flex: none;
+  transition: background-color 180ms ease-out;
+}
+.switch-thumb {
+  position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--navy-ink); transition: transform 200ms cubic-bezier(.16, 1, .3, 1);
+}
+.switch[aria-checked="true"] .switch-track { background: #8EB0F2; border-color: #8EB0F2; }
+.switch[aria-checked="true"] .switch-thumb { transform: translateX(14px); background: #0A0E16; }
+
+/* ===== Band ribbon ===== */
+.ribbon {
+  display: flex; align-items: center; gap: var(--s-5); flex-wrap: wrap;
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+.ribbon-total { font-size: 13px; color: var(--ink-2); }
+.ribbon-total b { font-family: var(--font-serif); font-size: 22px; line-height: 24px; color: var(--ink); font-weight: 600; margin-right: var(--s-1); }
+.ribbon-list { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.ribbon-item {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  padding: 4px 12px 4px 10px; border-radius: var(--radius); border: 1px solid var(--rule);
+  background: var(--card);
+}
+.ribbon-item .n { font-family: var(--font-serif); font-size: 20px; line-height: 24px; font-weight: 600; }
+.ribbon-item .l { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.ribbon-item[data-band="high"] .l { color: var(--high-ink); }
+.ribbon-item[data-band="medium"] .l { color: var(--med-ink); }
+.ribbon-item[data-band="low"] .l { color: var(--low-ink); }
+.ribbon-bar { flex: 1 1 200px; max-width: 360px; display: flex; height: 8px; border-radius: 2px; overflow: hidden; gap: 2px; }
+.ribbon-bar i { display: block; height: 100%; }
+.ribbon-note { margin-left: auto; font-size: 12px; color: var(--ink-2); }
+
+/* ===== Workspace ===== */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(360px, 420px) 1fr;
+  min-height: 0;
+}
+@media (min-width: 901px) {
+  body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .workspace { flex: 1; }
+}
+.queue { background: var(--paper-2); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; }
+.queue-head { padding: var(--s-4) var(--s-4) var(--s-3); border-bottom: 1px solid var(--rule); }
+.queue-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2); }
+.queue-title h2 { font-size: 18px; line-height: 24px; }
+.queue-title span { font-size: 12px; color: var(--ink-2); }
+.search {
+  margin-top: var(--s-3); display: flex; align-items: center; gap: var(--s-2);
+  background: var(--card); border: 1px solid var(--rule-strong); border-radius: var(--radius); padding: 0 var(--s-3);
+  height: 36px; color: var(--ink-2);
+}
+.search:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+.search input { border: 0; background: transparent; font: inherit; color: var(--ink); flex: 1; min-width: 0; height: 100%; outline: none; }
+.search input::placeholder { color: var(--ink-2); }
+.filters { display: flex; gap: var(--s-2); margin-top: var(--s-2); flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--card);
+  font-size: 12px; font-weight: 500; cursor: pointer; color: var(--ink);
+}
+.chip span { color: var(--ink-2); font-weight: 400; }
+.chip:hover { border-color: var(--ink-2); }
+
+.queue-list { overflow-y: auto; flex: 1; min-height: 0; padding: var(--s-2); }
+.queue-list li + li { margin-top: var(--s-1); }
+.row {
+  width: 100%; text-align: left; cursor: pointer;
+  display: grid; grid-template-columns: 36px 1fr auto; gap: var(--s-1) var(--s-3); align-items: start;
+  padding: var(--s-3); border-radius: var(--radius);
+  background: transparent; border: 1px solid transparent;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+.row:hover { background: var(--card); border-color: var(--rule); }
+.row[aria-current="true"] { background: var(--card); border-color: var(--accent); box-shadow: var(--shadow); }
+.row-main { min-width: 0; }
+.row-id { display: flex; align-items: center; gap: var(--s-2); font-size: 13px; }
+.row-reason { margin-top: 2px; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-strip { grid-column: 2 / 4; margin-top: var(--s-1); }
+
+.avatar {
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--paper); border: 1px solid var(--rule-strong);
+  font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--ink);
+}
+.row[aria-current="true"] .avatar { background: var(--accent-soft); border-color: var(--accent); }
+
+.status {
+  font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--ink-2); padding: 0 6px; border: 1px solid var(--rule-strong); border-radius: 2px; white-space: nowrap;
+}
+
+/* Heat strip: 30 days, darker = more wagered */
+.strip { display: grid; grid-template-columns: repeat(30, 1fr); gap: 1px; height: 8px; }
+.strip i { display: block; border-radius: 1px; background: color-mix(in srgb, var(--heat) var(--v), transparent); }
+
+/* ===== Risk badge: number + label + 4 rising bars ===== */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: var(--radius);
+  white-space: nowrap; border: 1px solid transparent;
+}
+.badge-n { font-family: var(--font-mono); font-weight: 500; font-size: 13px; }
+.badge-l { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.meter { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.meter i { width: 3px; border-radius: 1px; background: currentColor; opacity: .22; }
+.meter i:nth-child(1) { height: 5px; } .meter i:nth-child(2) { height: 7px; }
+.meter i:nth-child(3) { height: 9px; } .meter i:nth-child(4) { height: 12px; }
+.meter i.on { opacity: 1; }
+.badge[data-band="high"]   { background: var(--high-soft); color: var(--high-ink); border-color: color-mix(in srgb, var(--high) 35%, transparent); }
+.badge[data-band="medium"] { background: var(--med-soft);  color: var(--med-ink);  border-color: color-mix(in srgb, var(--med) 45%, transparent); }
+.badge[data-band="low"]    { background: var(--low-soft);  color: var(--low-ink);  border-color: color-mix(in srgb, var(--low) 35%, transparent); }
+
+/* ===== Dossier ===== */
+.dossier { overflow-y: auto; min-height: 0; padding: var(--s-5) var(--s-6) var(--s-7); }
+.dossier-inner { max-width: 1040px; margin: 0 auto; }
+
+.case-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-4) var(--s-5); padding-bottom: var(--s-5); border-bottom: 1px solid var(--rule); }
+.case-id { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
+.case-id h1 { font-size: 30px; line-height: 36px; font-weight: 600; letter-spacing: -0.02em; }
+.case-meta { margin-top: var(--s-2); color: var(--ink-2); display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); }
+.case-meta b { color: var(--ink); font-weight: 500; }
+.case-file-no { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); margin-bottom: var(--s-1); display: block; }
+.actions { margin-left: auto; display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.btn {
+  height: 36px; padding: 0 var(--s-4); border-radius: var(--radius); cursor: pointer; font-weight: 500; font-size: 14px;
+  border: 1px solid var(--rule-strong); background: var(--card); color: var(--ink);
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+.btn:hover { border-color: var(--ink-2); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--ink)); border-color: transparent; }
+.btn-quiet { background: transparent; border-color: transparent; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--rule-strong); }
+.btn-quiet:hover { text-decoration-color: currentColor; border-color: transparent; }
+
+/* Rubber stamp */
+.stamp {
+  font-family: var(--font-mono); font-weight: 500; font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  padding: 3px 10px; border: 3px double currentColor; border-radius: 3px; transform: rotate(-3deg);
+  display: inline-block; opacity: .92;
+}
+.stamp[data-status="Escalated"]     { color: var(--high-ink); }
+.stamp[data-status="In review"]     { color: var(--accent); }
+.stamp[data-status="Awaiting info"] { color: var(--med-ink); }
+.stamp[data-status="New"]           { color: var(--ink-2); }
+
+/* Sheets (dossier cards with paper grain) */
+.sheet {
+  background-color: var(--card); background-image: var(--grain);
+  border: 1px solid var(--rule); border-radius: var(--radius); padding: var(--s-5);
+}
+.sheet h2 { font-size: 19px; line-height: 24px; }
+.sheet-sub { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.grid { display: grid; gap: var(--s-4); margin-top: var(--s-5); }
+.grid-verdict { grid-template-columns: minmax(280px, 0.9fr) 1.1fr; }
+.grid-history { grid-template-columns: 1.5fr 1fr; }
+
+/* Score */
+.score { display: flex; align-items: center; gap: var(--s-5); }
+.ring { position: relative; width: 132px; height: 132px; flex: none; }
+.ring svg { display: block; transform: rotate(-90deg); }
+.ring-track { stroke: var(--track); }
+.ring-fill { transition: stroke-dashoffset 280ms cubic-bezier(.16, 1, .3, 1); }
+.ring-num {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--font-serif); font-size: 48px; line-height: 1; font-weight: 600; letter-spacing: -0.03em;
+}
+.score-text .band-word { font-family: var(--font-serif); font-size: 24px; line-height: 28px; font-weight: 600; }
+.score-text .of { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.score-text .meter { height: 18px; gap: 3px; margin-top: var(--s-2); }
+.score-text .meter i { width: 6px; }
+.score-text .meter i:nth-child(1) { height: 7px; } .score-text .meter i:nth-child(2) { height: 10px; }
+.score-text .meter i:nth-child(3) { height: 14px; } .score-text .meter i:nth-child(4) { height: 18px; }
+.types { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s-4); }
+.type-tag { font-size: 12px; line-height: 18px; padding: 1px 8px; border: 1px solid var(--rule-strong); border-radius: 2px; color: var(--ink); background: var(--paper); }
+
+/* Recommended action */
+.action-text { font-family: var(--font-serif); font-size: 22px; line-height: 28px; font-weight: 600; margin-top: var(--s-3); letter-spacing: -0.01em; }
+.action-team { display: inline-block; margin-top: var(--s-2); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
+.action-why { margin-top: var(--s-3); color: var(--ink-2); max-width: 60ch; }
+.action-buttons { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
+.action-note { margin-top: var(--s-4); font-size: 12px; color: var(--ink-2); border-top: 1px dashed var(--rule-strong); padding-top: var(--s-3); }
+
+/* Evidence thread */
+.thread { margin-top: var(--s-4); position: relative; padding-left: 28px; }
+.thread::before { content: ""; position: absolute; left: 7px; top: 10px; bottom: 10px; width: 1px; background: var(--rule-strong); }
+.thread > li { position: relative; }
+.thread > li + li { margin-top: var(--s-3); }
+.thread > li::before {
+  content: ""; position: absolute; left: -26px; top: 18px; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--card); border: 2px solid var(--ink);
+}
+.reason {
+  background: var(--paper); border: 1px solid var(--rule); border-radius: var(--radius);
+  padding: var(--s-3) var(--s-4); display: grid; grid-template-columns: 1fr auto; gap: var(--s-1) var(--s-5);
+}
+.reason h3 { font-size: 16px; line-height: 22px; }
+.reason-type { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); }
+.reason-ev { grid-column: 1; color: var(--ink-2); }
+.reason-pts { grid-column: 2; grid-row: 1 / span 3; text-align: right; align-self: center; min-width: 96px; }
+.reason-pts b { font-family: var(--font-mono); font-weight: 500; font-size: 18px; color: var(--ink); display: block; }
+.reason-pts small { font-size: 11px; color: var(--ink-2); }
+.pts-bar { height: 4px; background: var(--track); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+.pts-bar i { display: block; height: 100%; background: var(--ink); }
+.thread-sum { margin-top: var(--s-3); padding-left: 28px; font-size: 13px; color: var(--ink-2); }
+.thread-sum b { font-family: var(--font-mono); color: var(--ink); font-weight: 500; }
+
+/* Charts */
+.chart { display: block; width: 100%; height: auto; margin-top: var(--s-4); overflow: visible; }
+.chart text { font-family: var(--font-sans); font-size: 11px; fill: var(--ink-2); }
+.chart .lbl-strong { font-family: var(--font-mono); font-size: 12px; font-weight: 500; fill: var(--ink); }
+.chart .axis { stroke: var(--rule-strong); }
+.chart .grid-line { stroke: var(--rule); }
+.chart .peer-band { fill: color-mix(in srgb, var(--ink) 8%, transparent); }
+.chart .peer-tick { stroke: var(--ink-2); stroke-width: 2; }
+.chart .player-mark { fill: var(--ink); }
+.chart .bar { fill: color-mix(in srgb, var(--ink) 55%, transparent); }
+.chart .bar.recent { fill: var(--ink); }
+.chart .baseline { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.ratio { margin-top: var(--s-3); display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); }
+.ratio div { font-size: 13px; color: var(--ink-2); }
+.ratio b { font-family: var(--font-mono); color: var(--ink); font-weight: 500; font-size: 15px; margin-right: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); margin-top: var(--s-2); font-size: 12px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; }
+
+/* Locations */
+.loc-list { margin-top: var(--s-4); }
+.loc-list li { display: grid; grid-template-columns: 1fr auto; gap: 4px var(--s-3); padding: var(--s-2) 0; border-bottom: 1px solid var(--rule); }
+.loc-list li:last-child { border-bottom: 0; }
+.loc-name { font-weight: 500; }
+.loc-count { font-family: var(--font-mono); font-weight: 500; }
+.loc-bar { grid-column: 1 / -1; height: 6px; background: var(--track); border-radius: 2px; overflow: hidden; }
+.loc-bar i { display: block; height: 100%; background: var(--ink-2); }
+.loc-flag { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--high-ink); margin-left: var(--s-2); }
+.loc-flag.home { color: var(--ink-2); }
+.loc-list li.out .loc-bar i { background: var(--high); }
+
+/* Linked players */
+.links { margin-top: var(--s-4); }
+.links li { display: grid; grid-template-columns: 36px 1fr auto; gap: var(--s-3); align-items: center; padding: var(--s-3) 0; border-bottom: 1px solid var(--rule); }
+.links li:last-child { border-bottom: 0; }
+.link-how { color: var(--ink-2); font-size: 13px; }
+.empty { margin-top: var(--s-4); color: var(--ink-2); padding: var(--s-4); border: 1px dashed var(--rule-strong); border-radius: var(--radius); }
+
+.foot-note { margin-top: var(--s-6); font-size: 12px; color: var(--ink-2); text-align: center; }
+
+/* ===== Responsive ===== */
+@media (max-width: 1180px) {
+  .grid-verdict, .grid-history { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: 1fr; height: auto; }
+  .queue { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .queue-list { max-height: 420px; }
+  .dossier { overflow: visible; padding: var(--s-5) var(--s-4) var(--s-7); }
+  .ribbon-note { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .masthead { padding: var(--s-2) var(--s-4); gap: var(--s-3); }
+  .brand-sub, .monitor .detail { display: none; }
+  .ribbon { padding: var(--s-3) var(--s-4); gap: var(--s-3); }
+  .actions { margin-left: 0; width: 100%; }
+  .score { flex-direction: column; align-items: flex-start; }
+  .reason { gap: var(--s-1) var(--s-3); }
+  .reason-pts { min-width: 56px; }
+  .sheet { padding: var(--s-4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="27" height="27" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M6 15c2.6-4.4 5.6-6.5 9-6.5s6.4 2.1 9 6.5c-2.6 4.4-5.6 6.5-9 6.5S8.6 19.4 6 15Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="13" y="12" width="4" height="6" rx="1" fill="#5CC3B5"/>
+    </svg>
+    <span class="brand-name">Sentinel</span>
+    <span class="brand-sub">Sports betting · Case review</span>
+  </div>
+  <span class="tag-synthetic">Synthetic data · static mock</span>
+  <div class="monitor" role="status">
+    <span class="pulse" aria-hidden="true"></span>
+    <span><strong>Monitoring</strong><span class="detail"> · last scan 2026-10-14 14:32</span></span>
+  </div>
+  <button class="switch" id="theme-toggle" type="button" role="switch" aria-checked="false">
+    <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+    Night shift
+  </button>
+</header>
+
+<section class="ribbon" aria-label="Open alerts by risk band">
+  <p class="ribbon-total"><b id="total-count">8</b>open alerts</p>
+  <ul class="ribbon-list" id="ribbon-list"></ul>
+  <div class="ribbon-bar" id="ribbon-bar" aria-hidden="true"></div>
+  <p class="ribbon-note">Filters, search and case buttons are placeholders in this mock.</p>
+</section>
+
+<main class="workspace">
+  <nav class="queue" aria-labelledby="queue-title">
+    <div class="queue-head">
+      <div class="queue-title">
+        <h2 id="queue-title">Alert queue</h2>
+        <span>Ranked by risk score</span>
+      </div>
+      <label class="search">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m10.5 10.5 3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="sr-only">Search alerts</span>
+        <input type="search" placeholder="Search player ID or reason">
+      </label>
+      <div class="filters">
+        <button class="chip" type="button">Band <span>All</span><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+        <button class="chip" type="button">Type <span>All</span><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+        <button class="chip" type="button">Status <span>Open</span><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      </div>
+    </div>
+    <ol class="queue-list" id="queue-list"></ol>
+  </nav>
+
+  <section class="dossier" id="dossier" aria-label="Player dossier">
+    <div class="dossier-inner" id="dossier-inner"></div>
+  </section>
+</main>
+
+<script>
+/* ---------- Hardcoded synthetic data (fictional players) ---------- */
+const PLAYERS = [
+  {
+    player_id: "P-10482", initials: "MR", age: 24, occupation: "Student, part-time retail", income_band: "Under $25k",
+    province: "ON", risk_score: 91, band: "high", anomaly_types: ["income_mismatch", "peer_deviation", "behaviour_change"],
+    reasons: [
+      { type: "income_mismatch", headline: "Deposits are 7× declared monthly income", evidence: "$14,850 deposited in 30 days against an income band under $25k a year (about $2,080 a month).", weight: 36 },
+      { type: "peer_deviation", headline: "Spend is 48× the peer median", evidence: "$14,850 vs. peer median $310 for students aged 18–24 earning under $25k.", weight: 29 },
+      { type: "network", headline: "Shares a device and payment card with P-20917", evidence: "Device D-7F31 and card ending 4417 used on both accounts in the last 30 days.", weight: 18 },
+      { type: "behaviour_change", headline: "Deposits up 6× on own 90-day baseline", evidence: "$14,850 this month vs. $2,410 a month on average over the previous 90 days.", weight: 8 }
+    ],
+    monthly_spend: 14850, peer_median: 310, peer_p90: 1120,
+    activity_30d: [120,0,340,80,510,0,620,900,450,1200,0,780,640,1500,300,980,410,0,1350,720,560,1900,880,430,1100,0,1650,760,1240,980],
+    locations: [{ region: "Toronto, ON", count: 171 }, { region: "Mississauga, ON", count: 15 }],
+    linked_players: [{ player_id: "P-20917", link: "Shared device D-7F31 · shared card ending 4417" }],
+    status: "Escalated",
+    recommended_action: { label: "Request source of funds", team: "AML", rationale: "Deposits far exceed what the declared income supports, and the account shares a device and card with another high-risk player." }
+  },
+  {
+    player_id: "P-20917", initials: "DK", age: 31, occupation: "Line cook", income_band: "$25k–$50k",
+    province: "ON", risk_score: 84, band: "high", anomaly_types: ["location", "peer_deviation"],
+    reasons: [
+      { type: "location", headline: "Bets placed from Malta on an Ontario account", evidence: "9 sessions from a Valletta, Malta IP address and 21 from Gatineau, QC in the last 30 days.", weight: 31 },
+      { type: "peer_deviation", headline: "Spend is 18× the peer median", evidence: "$9,400 vs. peer median $520 for players aged 25–34 earning $25k–$50k.", weight: 26 },
+      { type: "network", headline: "Shares a device and payment card with P-10482", evidence: "Device D-7F31 and card ending 4417 used on both accounts in the last 30 days.", weight: 18 },
+      { type: "location", headline: "Impossible travel: Toronto to Valletta in 3 hours", evidence: "Session in Toronto at 18:10, then Valletta at 21:12 on Oct 6.", weight: 9 }
+    ],
+    monthly_spend: 9400, peer_median: 520, peer_p90: 1600,
+    activity_30d: [60,0,0,140,210,0,90,380,0,520,640,0,300,710,880,0,450,960,0,1200,350,0,820,1100,460,0,980,1300,0,740],
+    locations: [{ region: "Toronto, ON", count: 58 }, { region: "Gatineau, QC", count: 21 }, { region: "Valletta, Malta", count: 9 }],
+    linked_players: [{ player_id: "P-10482", link: "Shared device D-7F31 · shared card ending 4417" }],
+    status: "In review",
+    recommended_action: { label: "Verify account owner and device", team: "Fraud", rationale: "Activity from outside Canada and impossible travel point to shared or taken-over credentials." }
+  },
+  {
+    player_id: "P-33051", initials: "AS", age: 46, occupation: "Dental hygienist", income_band: "$50k–$75k",
+    province: "ON", risk_score: 76, band: "high", anomaly_types: ["behaviour_change", "income_mismatch"],
+    reasons: [
+      { type: "behaviour_change", headline: "Monthly spend up 7× on own history", evidence: "$4,200 in the last 30 days vs. $600 a month on average over the previous 90 days.", weight: 30 },
+      { type: "behaviour_change", headline: "Late-night betting rose from 8% to 61%", evidence: "61% of bets placed between 00:00 and 05:00 this month vs. 8% in the baseline.", weight: 22 },
+      { type: "behaviour_change", headline: "Stakes rise after losses", evidence: "After 38 of 52 losses the next stake was larger; on average 2.4× the previous stake.", weight: 14 },
+      { type: "income_mismatch", headline: "Spend is 81% of estimated monthly income", evidence: "$4,200 against roughly $5,200 a month for the $50k–$75k band.", weight: 10 }
+    ],
+    monthly_spend: 4200, peer_median: 640, peer_p90: 1900,
+    activity_30d: [20,0,35,15,0,40,25,0,30,20,45,0,60,85,40,120,0,150,210,90,260,310,180,0,420,380,510,290,600,470],
+    locations: [{ region: "Hamilton, ON", count: 94 }],
+    linked_players: [],
+    status: "New",
+    recommended_action: { label: "Safer Gambling check-in", team: "Safer Gambling", rationale: "A sharp rise in spend, late-night play and loss chasing are signs of harm rather than crime." }
+  },
+  {
+    player_id: "P-41208", initials: "JT", age: 38, occupation: "Electrician", income_band: "$75k–$100k",
+    province: "ON", risk_score: 63, band: "medium", anomaly_types: ["location", "behaviour_change"],
+    reasons: [
+      { type: "location", headline: "Impossible travel: Ottawa to Las Vegas in 1 h 50 min", evidence: "Login from Ottawa, ON at 19:02, then a bet from Las Vegas, NV at 20:52 on Oct 9.", weight: 33 },
+      { type: "location", headline: "6 bets from outside Canada on a new device", evidence: "Device D-91C4, first seen Oct 9: 6 bets totalling $1,140.", weight: 21 },
+      { type: "behaviour_change", headline: "New payment method added the same evening", evidence: "Card ending 0832 added at 20:40 on Oct 9; first use on this account.", weight: 9 }
+    ],
+    monthly_spend: 1900, peer_median: 1450, peer_p90: 3200,
+    activity_30d: [45,60,0,80,55,0,70,90,40,0,65,85,0,50,75,95,0,60,80,45,0,70,110,55,0,90,60,85,0,75],
+    locations: [{ region: "Ottawa, ON", count: 71 }, { region: "Las Vegas, NV, USA", count: 6 }, { region: "Montréal, QC", count: 3 }],
+    linked_players: [],
+    status: "New",
+    recommended_action: { label: "Verify account owner and device", team: "Fraud", rationale: "A new device and card appeared together with a login that cannot be physically possible." }
+  },
+  {
+    player_id: "P-52764", initials: "SN", age: 29, occupation: "Software developer", income_band: "$100k–$150k",
+    province: "ON", risk_score: 55, band: "medium", anomaly_types: ["peer_deviation", "behaviour_change"],
+    reasons: [
+      { type: "peer_deviation", headline: "Average stake is 9× the peer median", evidence: "$412 average stake vs. $46 peer median for players aged 25–34 earning $100k–$150k.", weight: 27 },
+      { type: "peer_deviation", headline: "Bets concentrated on low-liquidity markets", evidence: "64% of stakes on lower-division soccer totals vs. 4% for peers.", weight: 18 },
+      { type: "behaviour_change", headline: "Deposits now exceed amounts wagered", evidence: "$6,300 deposited vs. $4,200 wagered in 30 days; baseline ratio was 1.0.", weight: 10 }
+    ],
+    monthly_spend: 6300, peer_median: 980, peer_p90: 2900,
+    activity_30d: [0,220,0,0,340,0,0,410,0,280,0,0,520,0,0,300,0,460,0,0,380,0,0,590,0,250,0,0,430,0],
+    locations: [{ region: "Waterloo, ON", count: 112 }, { region: "Toronto, ON", count: 18 }],
+    linked_players: [],
+    status: "In review",
+    recommended_action: { label: "Review betting pattern for integrity risk", team: "AML", rationale: "Large stakes on thin markets with excess deposits can indicate value transfer; income alone does not explain the pattern." }
+  },
+  {
+    player_id: "P-60339", initials: "LB", age: 57, occupation: "Retired teacher", income_band: "$50k–$75k",
+    province: "ON", risk_score: 47, band: "medium", anomaly_types: ["behaviour_change", "peer_deviation"],
+    reasons: [
+      { type: "behaviour_change", headline: "Bet frequency up 3.2× on own history", evidence: "4.1 bets a day in the last 30 days vs. 1.3 a day in the previous 90.", weight: 24 },
+      { type: "behaviour_change", headline: "Started live in-play betting", evidence: "41% of bets are in-play this month; none in the previous 90 days.", weight: 15 },
+      { type: "peer_deviation", headline: "Sessions longer than 90% of peers", evidence: "Average session 2 h 40 min vs. a peer 90th percentile of 1 h 55 min.", weight: 8 }
+    ],
+    monthly_spend: 1150, peer_median: 420, peer_p90: 1300,
+    activity_30d: [10,0,15,0,20,10,0,15,25,0,20,30,15,35,40,20,45,30,50,60,35,55,70,45,65,80,60,75,90,70],
+    locations: [{ region: "Kingston, ON", count: 66 }],
+    linked_players: [],
+    status: "New",
+    recommended_action: { label: "Safer Gambling check-in", team: "Safer Gambling", rationale: "Steadily rising frequency and longer sessions suggest a change worth a supportive conversation." }
+  },
+  {
+    player_id: "P-71845", initials: "RP", age: 35, occupation: "Accountant", income_band: "$75k–$100k",
+    province: "ON", risk_score: 32, band: "low", anomaly_types: ["location", "behaviour_change"],
+    reasons: [
+      { type: "location", headline: "Bets from Winnipeg, MB on 4 days", evidence: "4 sessions, Oct 2–5, on the same device used at home.", weight: 20 },
+      { type: "behaviour_change", headline: "Weekday betting during one week", evidence: "Usually bets on weekends only; 5 weekday sessions during Oct 2–6.", weight: 12 }
+    ],
+    monthly_spend: 640, peer_median: 700, peer_p90: 1800,
+    activity_30d: [30,0,25,40,0,35,20,0,45,30,0,25,0,40,35,0,30,20,0,55,60,0,25,30,0,35,0,40,30,25],
+    locations: [{ region: "London, ON", count: 52 }, { region: "Winnipeg, MB", count: 4 }],
+    linked_players: [],
+    status: "Awaiting info",
+    recommended_action: { label: "Close as explained if travel is confirmed", team: "Fraud", rationale: "Same device and normal spend suggest a trip, not a takeover." }
+  },
+  {
+    player_id: "P-88120", initials: "CO", age: 42, occupation: "Registered nurse", income_band: "$75k–$100k",
+    province: "ON", risk_score: 18, band: "low", anomaly_types: ["peer_deviation", "income_mismatch"],
+    reasons: [
+      { type: "peer_deviation", headline: "Bets across 11 sports vs. a peer median of 3", evidence: "11 distinct sports in 30 days; peer median 3, peer 90th percentile 6.", weight: 11 },
+      { type: "income_mismatch", headline: "Deposits slightly above the band's usual share", evidence: "$480 deposited, 7% of estimated monthly income vs. 4% for peers.", weight: 7 }
+    ],
+    monthly_spend: 480, peer_median: 520, peer_p90: 1500,
+    activity_30d: [15,20,0,25,30,0,20,15,0,35,25,0,20,30,0,25,15,0,30,20,0,25,35,0,20,30,0,15,25,20],
+    locations: [{ region: "Sudbury, ON", count: 40 }, { region: "Barrie, ON", count: 3 }],
+    linked_players: [],
+    status: "New",
+    recommended_action: { label: "No action — keep monitoring", team: "Safer Gambling", rationale: "Both signals are mild and spend sits below the peer median." }
+  }
+];
+
+/* ---------- Helpers (rendering only) ---------- */
+const TYPE_LABEL = { income_mismatch: "Income mismatch", peer_deviation: "Peer deviation", location: "Location anomaly", behaviour_change: "Behaviour change", network: "Linked players" };
+const BAND_LABEL = { high: "High", medium: "Medium", low: "Low" };
+const BAND_VAR = { high: "--high", medium: "--med", low: "--low" };
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cad = n => "$" + n.toLocaleString("en-CA");
+const byId = id => PLAYERS.find(p => p.player_id === id);
+
+/* Meter follows the band, never the raw score: Low 1, Medium 2, High 3, plus a 4th bar at 90+. */
+function meter(p) {
+  const on = { low: 1, medium: 2, high: 3 }[p.band] + (p.risk_score >= 90 ? 1 : 0);
+  return '<span class="meter" aria-hidden="true">' + [1,2,3,4].map(i => '<i class="' + (i <= on ? "on" : "") + '"></i>').join("") + "</span>";
+}
+function badge(p) {
+  return '<span class="badge" data-band="' + p.band + '" role="img" aria-label="Risk score ' + p.risk_score + ' out of 100, ' + BAND_LABEL[p.band] + '">' +
+    '<span class="badge-n">' + p.risk_score + '</span><span class="badge-l">' + BAND_LABEL[p.band] + "</span>" + meter(p) + "</span>";
+}
+function strip(values) {
+  const max = Math.max(...values) || 1;
+  return '<span class="strip" role="img" aria-label="Amount wagered per day over 30 days">' +
+    values.map(v => '<i style="--v:' + (v === 0 ? 6 : Math.round(18 + 82 * v / max)) + '%"></i>').join("") + "</span>";
+}
+
+/* ---------- Ribbon ---------- */
+(function renderRibbon() {
+  const counts = { high: 0, medium: 0, low: 0 };
+  PLAYERS.forEach(p => counts[p.band]++);
+  document.getElementById("total-count").textContent = PLAYERS.length;
+  document.getElementById("ribbon-list").innerHTML = ["high", "medium", "low"].map(b =>
+    '<li class="ribbon-item" data-band="' + b + '"><span class="n">' + counts[b] + '</span><span class="l">' + BAND_LABEL[b] + "</span></li>").join("");
+  document.getElementById("ribbon-bar").innerHTML = ["high", "medium", "low"].map(b =>
+    '<i style="flex:' + counts[b] + ';background:var(' + BAND_VAR[b] + ')"></i>').join("");
+})();
+
+/* ---------- Queue ---------- */
+const queueEl = document.getElementById("queue-list");
+queueEl.innerHTML = [...PLAYERS].sort((a, b) => b.risk_score - a.risk_score).map(p =>
+  '<li><button class="row" type="button" data-id="' + p.player_id + '">' +
+    '<span class="avatar" aria-hidden="true">' + p.initials + "</span>" +
+    '<span class="row-main"><span class="row-id"><span class="mono">' + p.player_id + '</span><span class="status">' + p.status + "</span></span>" +
+    '<span class="row-reason">' + p.reasons[0].headline + "</span></span>" +
+    badge(p) +
+    '<span class="row-strip">' + strip(p.activity_30d) + "</span>" +
+  "</button></li>").join("");
+
+/* ---------- Charts (inline SVG) ---------- */
+function peerChart(p, W) {
+  const H = 84, L = 12, R = 12, Y = 44;
+  const lo = Math.log10(100), hi = Math.log10(30000);
+  const x = v => L + (Math.log10(Math.min(Math.max(v, 100), 30000)) - lo) / (hi - lo) * (W - L - R);
+  const ticks = [100, 300, 1000, 3000, 10000, 30000];
+  const tickLbl = v => v >= 1000 ? "$" + v / 1000 + "k" : "$" + v;
+  let s = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Monthly spend ' + cad(p.monthly_spend) + ", peer median " + cad(p.peer_median) + ", peer 90th percentile " + cad(p.peer_p90) + '">';
+  s += '<rect class="peer-band" x="' + x(100) + '" y="' + (Y - 10) + '" width="' + (x(p.peer_p90) - x(100)) + '" height="20" rx="2"/>';
+  s += '<line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + (Y + 10) + '" y2="' + (Y + 10) + '"/>';
+  ticks.forEach(t => { s += '<line class="axis" x1="' + x(t) + '" x2="' + x(t) + '" y1="' + (Y + 10) + '" y2="' + (Y + 14) + '"/><text x="' + x(t) + '" y="' + (Y + 28) + '" text-anchor="middle">' + tickLbl(t) + "</text>"; });
+  s += '<line class="peer-tick" x1="' + x(p.peer_median) + '" x2="' + x(p.peer_median) + '" y1="' + (Y - 10) + '" y2="' + (Y + 10) + '"/>';
+  s += '<line class="peer-tick" x1="' + x(p.peer_p90) + '" x2="' + x(p.peer_p90) + '" y1="' + (Y - 10) + '" y2="' + (Y + 10) + '" stroke-dasharray="3 2"/>';
+  const px = x(p.monthly_spend);
+  s += '<path class="player-mark" d="M' + px + " " + (Y - 9) + " l7 9 -7 9 -7 -9z\"/>";
+  const anchor = px > W - 90 ? "end" : px < 90 ? "start" : "middle";
+  s += '<text class="lbl-strong" x="' + px + '" y="' + (Y - 18) + '" text-anchor="' + anchor + '">This player ' + cad(p.monthly_spend) + "</text>";
+  s += "</svg>";
+  return s;
+}
+
+function activityChart(values, W) {
+  const H = 170, L = 48, R = 8, T = 10, B = 26;
+  const max = Math.max(...values);
+  const step = max > 1000 ? 500 : max > 400 ? 200 : max > 100 ? 50 : 25;
+  const top = Math.ceil(max / step) * step || step;
+  const y = v => T + (1 - v / top) * (H - T - B);
+  const bw = (W - L - R) / 30;
+  const firstHalf = values.slice(0, 15);
+  const base = Math.round(firstHalf.reduce((a, b) => a + b, 0) / 15);
+  const lastWeek = values.slice(23).reduce((a, b) => a + b, 0);
+  let s = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Amount wagered per day for the last 30 days. Peak ' + cad(max) + "; first-half daily average " + cad(base) + '.">';
+  [0, top / 2, top].forEach(g => { s += '<line class="grid-line" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(g) + '" y2="' + y(g) + '"/><text x="' + (L - 6) + '" y="' + (y(g) + 4) + '" text-anchor="end">' + cad(g) + "</text>"; });
+  values.forEach((v, i) => {
+    const h = Math.max(v === 0 ? 0 : 2, (H - T - B) - (y(v) - T));
+    const gap = bw > 10 ? 3 : 1.5;
+    s += '<rect class="bar' + (i >= 23 ? " recent" : "") + '" x="' + (L + i * bw + gap / 2) + '" y="' + (H - B - h) + '" width="' + (bw - gap) + '" height="' + h + '" rx="1"/>';
+  });
+  s += '<line class="baseline" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(base) + '" y2="' + y(base) + '"/>';
+  [["Sep 15", 0], ["Sep 30", 15], ["Oct 14", 29]].forEach(([t, i]) => { s += '<text x="' + (L + i * bw + bw / 2) + '" y="' + (H - 8) + '" text-anchor="' + (i === 29 ? "end" : i === 0 ? "start" : "middle") + '">' + t + "</text>"; });
+  s += "</svg>";
+  return { svg: s, base, lastWeek };
+}
+
+/* ---------- Dossier ---------- */
+const inner = document.getElementById("dossier-inner");
+const R = 56, C = 2 * Math.PI * R;
+
+function renderDossier(p) {
+  const total = p.reasons.reduce((a, r) => a + r.weight, 0);
+  const maxW = Math.max(...p.reasons.map(r => r.weight));
+  const act = activityChart(p.activity_30d, 600);
+  const locMax = Math.max(...p.locations.map(l => l.count));
+  const caseNo = "Case SNT-2026-" + p.player_id.slice(2);
+
+  inner.innerHTML =
+    '<header class="case-head">' +
+      "<div>" +
+        '<span class="case-file-no">' + caseNo + "</span>" +
+        '<div class="case-id"><h1 id="case-title" tabindex="-1">Player <span class="mono" style="font-size:.86em">' + p.player_id + "</span></h1>" +
+        '<span class="stamp" data-status="' + p.status + '">' + p.status + "</span></div>" +
+        '<p class="case-meta"><span><b>' + p.age + "</b> yrs</span><span><b>" + p.occupation + "</b></span><span>Income <b>" + p.income_band + "</b></span><span>Province <b>" + p.province + "</b></span></p>" +
+      "</div>" +
+      '<div class="actions"><button class="btn" type="button">Escalate</button><button class="btn" type="button">Request info</button><button class="btn btn-quiet" type="button">Dismiss</button></div>' +
+    "</header>" +
+
+    '<div class="grid grid-verdict">' +
+      '<section class="sheet" aria-labelledby="h-score">' +
+        '<h2 id="h-score">Risk score</h2>' +
+        '<div class="score" style="margin-top:16px">' +
+          '<div class="ring"><svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">' +
+            '<circle class="ring-track" cx="66" cy="66" r="' + R + '" fill="none" stroke-width="10"/>' +
+            '<circle class="ring-fill" id="ring-fill" cx="66" cy="66" r="' + R + '" fill="none" stroke-width="10" stroke="var(' + BAND_VAR[p.band] + ')" stroke-dasharray="' + C + '" stroke-dashoffset="' + C + '"/>' +
+          '</svg><span class="ring-num" id="ring-num" aria-hidden="true">0</span></div>' +
+          '<div class="score-text" style="color:var(' + BAND_VAR[p.band] + '-ink)">' +
+            '<p class="band-word">' + BAND_LABEL[p.band] + " risk</p>" + meter(p) +
+            '<p class="of">' + p.risk_score + " out of 100</p>" +
+            '<p class="sr-only">Risk score ' + p.risk_score + " out of 100, " + BAND_LABEL[p.band] + ".</p>" +
+          "</div>" +
+        "</div>" +
+        '<ul class="types" aria-label="Anomaly types">' + p.anomaly_types.map(t => '<li class="type-tag">' + TYPE_LABEL[t] + "</li>").join("") + "</ul>" +
+      "</section>" +
+
+      '<section class="sheet" aria-labelledby="h-action">' +
+        '<h2 id="h-action">Recommended action</h2>' +
+        '<p class="action-text">' + p.recommended_action.label + "</p>" +
+        '<span class="action-team">' + p.recommended_action.team + " team</span>" +
+        '<p class="action-why">' + p.recommended_action.rationale + "</p>" +
+        '<div class="action-buttons"><button class="btn btn-primary" type="button">' + p.recommended_action.label + '</button><button class="btn btn-quiet" type="button">Override with reason</button></div>' +
+        '<p class="action-note">A recommendation, not a decision. The investigator confirms it or overrides it with a reason.</p>' +
+      "</section>" +
+    "</div>" +
+
+    '<section class="sheet grid" aria-labelledby="h-evidence">' +
+      "<div><h2 id=\"h-evidence\">Why flagged</h2><p class=\"sheet-sub\">Evidence thread, strongest reason first. Each reason adds points to the score.</p></div>" +
+      '<ol class="thread">' + p.reasons.map(r =>
+        '<li><article class="reason">' +
+          '<span class="reason-type">' + TYPE_LABEL[r.type] + "</span>" +
+          '<div class="reason-pts"><b>+' + r.weight + '</b><small>points</small><div class="pts-bar" aria-hidden="true"><i style="width:' + Math.round(100 * r.weight / maxW) + '%"></i></div></div>' +
+          "<h3>" + r.headline + "</h3>" +
+          '<p class="reason-ev">' + r.evidence + "</p>" +
+        "</article></li>").join("") +
+      "</ol>" +
+      '<p class="thread-sum">' + p.reasons.length + " reasons · points total <b>" + total + "</b> = risk score <b>" + p.risk_score + "</b></p>" +
+    "</section>" +
+
+    '<section class="sheet grid" aria-labelledby="h-peer">' +
+      '<div><h2 id="h-peer">Compared with peers</h2><p class="sheet-sub">Monthly spend (deposits, last 30 days) against players of the same age band, income band and province. Log scale.</p></div>' +
+      '<div><div data-chart="peer"></div>' +
+        '<div class="legend"><span><svg width="12" height="12" aria-hidden="true"><path d="M6 1l5 5-5 5-5-5z" fill="currentColor"/></svg>This player</span>' +
+        '<span><svg width="12" height="12" aria-hidden="true"><line x1="6" x2="6" y1="0" y2="12" stroke="currentColor" stroke-width="2"/></svg>Peer median ' + cad(p.peer_median) + "</span>" +
+        '<span><svg width="12" height="12" aria-hidden="true"><line x1="6" x2="6" y1="0" y2="12" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/></svg>Peer 90th percentile ' + cad(p.peer_p90) + "</span>" +
+        '<span><i style="width:14px;height:10px;background:color-mix(in srgb, currentColor 18%, transparent);border-radius:2px"></i>90% of peers spend in this range</span></div>' +
+        '<div class="ratio"><div><b>' + (p.monthly_spend / p.peer_median).toFixed(1) + "×</b>the peer median</div><div><b>" + (p.monthly_spend / p.peer_p90).toFixed(1) + "×</b>the peer 90th percentile</div></div>" +
+      "</div>" +
+    "</section>" +
+
+    '<div class="grid grid-history">' +
+      '<section class="sheet" aria-labelledby="h-activity">' +
+        '<h2 id="h-activity">30-day activity</h2><p class="sheet-sub">Amount wagered per day. Last 7 days in solid ink: ' + cad(act.lastWeek) + " total. Dashed line: first-half daily average, " + cad(act.base) + ".</p>" +
+        '<div data-chart="activity"></div>' +
+      "</section>" +
+      '<section class="sheet" aria-labelledby="h-loc">' +
+        '<h2 id="h-loc">Locations</h2><p class="sheet-sub">Sessions by region, last 30 days. Home province: ' + p.province + ".</p>" +
+        '<ul class="loc-list">' + p.locations.map(l => {
+          const home = l.region.endsWith(", " + p.province);
+          return '<li class="' + (home ? "" : "out") + '"><span class="loc-name">' + l.region +
+            '<span class="loc-flag' + (home ? " home" : "") + '">' + (home ? "In province" : "Outside province") + "</span></span>" +
+            '<span class="loc-count">' + l.count + '</span><span class="loc-bar" aria-hidden="true"><i style="width:' + Math.round(100 * l.count / locMax) + '%"></i></span></li>';
+        }).join("") + "</ul>" +
+      "</section>" +
+    "</div>" +
+
+    '<section class="sheet grid" aria-labelledby="h-links">' +
+      '<div><h2 id="h-links">Linked players</h2><p class="sheet-sub">Accounts sharing a device, payment method or address with this player.</p></div>' +
+      (p.linked_players.length
+        ? '<ul class="links">' + p.linked_players.map(l => { const o = byId(l.player_id);
+            return '<li><span class="avatar" aria-hidden="true">' + o.initials + '</span><span><span class="mono">' + o.player_id + '</span><span class="link-how"> · ' + l.link + "</span></span>" + badge(o) + "</li>"; }).join("") + "</ul>"
+        : '<p class="empty">No linked players found. Shared devices, payment methods and addresses were checked.</p>') +
+    "</section>" +
+
+    '<p class="foot-note">Sentinel static mock · all players and figures are synthetic and fictional.</p>';
+
+  drawCharts(p);
+
+  // Signature moment: score counts up and the ring fills (≈260 ms).
+  const num = document.getElementById("ring-num");
+  const fill = document.getElementById("ring-fill");
+  const target = C * (1 - p.risk_score / 100);
+  if (reduceMotion) { num.textContent = p.risk_score; fill.style.strokeDashoffset = target; return; }
+  fill.getBoundingClientRect();
+  requestAnimationFrame(() => { fill.style.strokeDashoffset = target; });
+  const t0 = performance.now(), d = 260;
+  (function tick(t) {
+    const k = Math.min(1, (t - t0) / d), e = 1 - Math.pow(1 - k, 3);
+    num.textContent = Math.round(p.risk_score * e);
+    if (k < 1) requestAnimationFrame(tick);
+  })(t0);
+}
+
+/* Charts are drawn at their real pixel width so labels stay 11px at every size. */
+let current = null;
+function drawCharts(p) {
+  current = p;
+  const peer = inner.querySelector('[data-chart="peer"]');
+  const act = inner.querySelector('[data-chart="activity"]');
+  peer.innerHTML = peerChart(p, Math.max(280, peer.clientWidth));
+  act.innerHTML = activityChart(p.activity_30d, Math.max(280, act.clientWidth)).svg;
+}
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => current && drawCharts(current), 150); });
+
+/* ---------- Interaction 1: select a queue row ---------- */
+const dossierEl = document.getElementById("dossier");
+function select(id, fromClick) {
+  queueEl.querySelectorAll(".row").forEach(r => r.setAttribute("aria-current", r.dataset.id === id ? "true" : "false"));
+  renderDossier(byId(id));
+  dossierEl.scrollTop = 0;                       // every case opens at its header, never mid-evidence
+  if (fromClick) {
+    if (window.matchMedia("(max-width: 900px)").matches) dossierEl.scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
+    document.getElementById("case-title").focus({ preventScroll: true });
+  }
+}
+queueEl.addEventListener("click", e => { const row = e.target.closest(".row"); if (row) select(row.dataset.id, true); });
+select(queueEl.querySelector(".row").dataset.id);
+
+/* ---------- Interaction 2: Night shift toggle ---------- */
+const toggle = document.getElementById("theme-toggle");
+toggle.addEventListener("click", () => {
+  const night = toggle.getAttribute("aria-checked") !== "true";
+  toggle.setAttribute("aria-checked", String(night));
+  document.documentElement.setAttribute("data-theme", night ? "night" : "day");
+});
+</script>
+</body>
+</html>

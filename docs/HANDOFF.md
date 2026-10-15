@@ -8,8 +8,9 @@ You're picking up a planned-but-unbuilt project. No code exists yet; only these 
 2. [docs/SCOPE.md](SCOPE.md): what the MVP is and what we're **not** building.
 3. [PRODUCT.md](../PRODUCT.md): who the users are and how success is judged.
 4. [docs/WORKFLOW.md](WORKFLOW.md): the build steps, file names and "done when" checks. **This is your main working document.**
-5. [DESIGN.md](../DESIGN.md): read before building the dashboard (step 6).
-6. [docs/PROMPTS.md](PROMPTS.md): log any AI prompts you use here.
+5. [DESIGN.md](../DESIGN.md) and `frontend/mock_frontend.html`: read and open before building the dashboard (step 6).
+6. [docs/API_CONTRACT.md](API_CONTRACT.md): the fields and endpoints the backend must provide for the dashboard.
+7. [docs/PROMPTS.md](PROMPTS.md): log any AI prompts you use here.
 
 ## 2. Already decided
 
@@ -17,7 +18,8 @@ You're picking up a planned-but-unbuilt project. No code exists yet; only these 
 - Stack: Python + FastAPI backend, plain HTML/CSS/JS frontend, Jube for alerts and cases.
 - Detection: rules + Isolation Forest + peer-group z-scores. LightGBM/XGBoost + SHAP and LLM summaries are optional.
 - Four anomaly types: income mismatch, peer deviation, location anomaly, behaviour change.
-- One 0–100 risk score with bands Low / Medium / High / Critical, always shown as **number + label**.
+- One 0–100 risk score with three bands, Low (0–39) / Medium (40–69) / High (70–100), always shown as **number + label + 4-bar meter**.
+- Dashboard look and data: `frontend/mock_frontend.html` (static mock) and [API_CONTRACT.md](API_CONTRACT.md) (fields and endpoints). The live frontend will be a separate `frontend/index.html`.
 - Every alert must have reasons with evidence values. LLM text may only restate computed evidence.
 - File names and folder layout: see `WORKFLOW.md` and the README project structure.
 - Look and feel: calm, regulatory, high-contrast, not casino-like (see `DESIGN.md`).
@@ -30,7 +32,7 @@ Everything undecided is collected in **one place**: the [Open items](#6-open-ite
 
 1. **Scaffold the repo**: create the folders from the README project structure. The root `requirements.txt` and `.gitignore` already exist, and generated `data/` files are ignored. Set up the venv as described in README "Getting started".
 2. **Build step 1 (synthetic data)**: write `backend/pipeline/generate_data.py` to the column spec in `WORKFLOW.md`, including `scenario_labels.csv`. Everything else depends on it.
-3. **Write a mock `frontend/mock/alerts.json`** with 5 alerts in the reason format from step 3. This lets the dashboard and the API start in parallel with detection work.
+3. **Read `frontend/mock_frontend.html` and [API_CONTRACT.md](API_CONTRACT.md) together.** The mock already contains 8 hand-written alerts in the exact shape the API must return, so the backend and the live frontend can be built in parallel against that contract.
 
 ## 5. Definition of done (hackathon demo)
 
@@ -56,10 +58,12 @@ Every TBD across the docs, in one list. "Team lead" means whoever coordinates th
 | 5 | Dataset size and injection rates (draft: 5,000 players, 180 days, 3–5% risky) | Data owner (step 1) | `WORKFLOW.md` step 1, `generate_data.py` config |
 | 6 | Peer-group definition (draft: age band × income band × region) | Detection owner (step 2) | `WORKFLOW.md` step 2 |
 | 7 | Score weights and z-score threshold (draft: \|z\| > 3) | Detection owner (steps 3–4) | `detect.py`, `docs/VALIDATION.md` |
-| 8 | Risk-band cut-offs (draft: Low 0–39, Medium 40–69, High 70–89, Critical 90–100) | Detection owner, after validation | `DESIGN.md` §2, `detect.py` |
+| 8 | Risk-band cut-offs (draft, 3 bands: Low 0–39, Medium 40–69, High 70–100) | Detection owner, after validation | `DESIGN.md` §2, `detect.py` |
 | 9 | Jube integration method (HTTP API vs manual import), version and setup (Docker if supported) | Backend owner (step 5) | `WORKFLOW.md` step 5, README "Getting started" |
 | 10 | Chart library (hand-built SVG vs Chart.js) | Frontend owner (step 6) | `DESIGN.md` §7.4 |
 | 11 | LLM provider, if summaries are used at all | Team lead + bonus owner (step 7) | `WORKFLOW.md` step 7 |
 | 12 | Deployment target (assumed: local laptop demo) | Team lead | `PRODUCT.md` Stack |
 | 13 | Dark theme for the dashboard (not needed for MVP) | Frontend owner | `DESIGN.md` §2 |
 | 14 | Demo length, slide location, submission deadline | Team lead (check ThunderHacks rules) | `WORKFLOW.md` step 8, `docs/DEMO.md` |
+| 15 | `age` vs `age_band` in `players.csv` (the mock shows exact age) and adding `province` | Data owner (step 1) | `API_CONTRACT.md`, `WORKFLOW.md` step 1 |
+| 16 | When the "Monitoring" indicator turns `stale` (age of last scan) | Backend owner (step 5) | `API_CONTRACT.md` Summary |

@@ -18,7 +18,7 @@ The tool scores each player from 0 to 100, ranks them in one queue, and shows th
 |---|---|
 | 1. Detect unusual or suspicious activity | Rules, Isolation Forest and peer-group z-scores flag four anomaly types (below) |
 | 2. Contextual risk assessment | Every flag compares the player with their own 90-day baseline **and** with a peer group of similar players |
-| 3. Investigation prioritization | One 0–100 risk score with Low / Medium / High / Critical bands, in a single ranked queue across AML, Fraud and Safer Gambling |
+| 3. Investigation prioritization | One 0–100 risk score with Low (0–39) / Medium (40–69) / High (70–100) bands, in a single ranked queue across AML, Fraud and Safer Gambling |
 | 4. Investigator experience | A dashboard showing the score, a "why flagged" list with the actual numbers, a peer comparison chart and a recommended next action |
 
 Bonus items we're targeting: synthetic risky-player data, validation of detection rules, automated recommendations, network analysis of linked players, and a unified risk dashboard. See [docs/SCOPE.md](docs/SCOPE.md) for what's in the MVP and what's stretch.
@@ -60,6 +60,7 @@ Bonus items we're targeting: synthetic risky-player data, validation of detectio
 │   ├── SCOPE.md
 │   ├── WORKFLOW.md
 │   ├── PROMPTS.md
+│   ├── API_CONTRACT.md     # fields + endpoints the dashboard needs
 │   ├── VALIDATION.md       # produced in build step 4
 │   └── DEMO.md             # produced in build step 8
 ├── backend/
@@ -69,8 +70,9 @@ Bonus items we're targeting: synthetic risky-player data, validation of detectio
 │   ├── synthetic/          # players.csv, transactions.csv, linked_identifiers.csv, scenario_labels.csv
 │   ├── features/           # player_features.parquet, peer_stats.parquet
 │   └── scores/             # risk_scores.csv, alerts.json, validation_report.json
-└── frontend/               # index.html, styles.css, app.js
-    └── mock/               # alerts.json: hand-written sample data for building the UI before the API exists
+└── frontend/
+    ├── mock_frontend.html  # static design mock: 8 fictional players, opens by double-click (exists now)
+    └── index.html          # live dashboard calling the API (built later in step 6, with styles.css and app.js)
 ```
 
 Generated files in `data/` (`.csv`, `.parquet`) are git-ignored. Recreate them by running the pipeline.
@@ -84,6 +86,7 @@ Generated files in `data/` (`.csv`, `.parquet`) are git-ignored. Recreate them b
 | [docs/SCOPE.md](docs/SCOPE.md) | MVP vs stretch, how each requirement is demonstrated, what we're not building |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Build order with inputs, outputs, tools, owners and "done when" for each step |
 | [DESIGN.md](DESIGN.md) | Draft design direction: colours, type, spacing, risk badges, components |
+| [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Every field the dashboard mock shows, and the 3 endpoints the backend must provide |
 | [docs/PROMPTS.md](docs/PROMPTS.md) | Log of AI prompts used, per build step |
 
 ## Getting started
@@ -130,7 +133,9 @@ The API runs at http://127.0.0.1:8000, with interactive docs at http://127.0.0.1
 
 **6. Open the dashboard**
 
-Open `frontend/index.html` in a browser. If the browser blocks requests from a `file://` page, serve the folder instead:
+**Today:** double-click `frontend/mock_frontend.html`. It is a self-contained static mock that needs no server and no API. It shows the target design and the data the backend must supply (see [docs/API_CONTRACT.md](docs/API_CONTRACT.md)).
+
+**Later (after build step 6):** open the live dashboard `frontend/index.html`, a separate file that calls the API. If the browser blocks requests from a `file://` page, serve the folder instead:
 
 ```bash
 python -m http.server 5500 --directory frontend
