@@ -577,3 +577,17 @@ RE-CHECKS, then /impeccable critique and polish (low-risk fixes only), update DE
 **What went wrong / how we fixed it:**
 - A wrapped keyboard hint and, more importantly, the escaping hidden spans made the desktop page taller than the viewport; diagnosed with a CDP probe after the screenshot run showed a 37px page shift.
 - A network disconnect interrupted the run; on resume, all edits were re-read (none half-applied or duplicated) and the suites re-run from scratch.
+
+### C.2 — Light / dark theme   (date: 2026-10-15 · author: ellitellicity-commits · tool/model: Claude Code, claude-opus-5-5)
+
+**Exact prompt:**
+
+```text
+Can you push a light/dark feature for this? (That's it make one, commit, push, done)
+```
+
+**What changed:** masthead Light/Dark toggle (system setting by default, saved choice wins, applied before first paint); Night tokens from FRONTEND_OUTLINE.md §4.1/§4.2; chart and network hex colours in `app.js` turned into CSS tokens so they follow the theme; empty-chat composer pinned to the bottom. Details in DESIGN_RESTYLE.md §10.
+
+**How we test it:** headless Edge on a throwaway data copy (port 8002): theme 11/11, regression 48/48, chat 66/66, live 3/3, mock 6/6, no console errors; dark screenshots of every view.
+
+**What went wrong / how we fixed it:** inline token styles on the network circles overrode the CSS focus ring, so that rule now uses `!important`. One chat check read the aria-live region inside its 30 ms reset window and failed once; it now waits up to 2 s (test-only change).

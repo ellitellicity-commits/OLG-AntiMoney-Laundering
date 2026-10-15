@@ -23,7 +23,8 @@
 
   const ONTARIO = new Set(["Toronto", "Ottawa", "Hamilton-Niagara", "Southwestern ON", "Eastern ON", "Northern ON"]);
   const BAND_RANK = { Low: 0, Medium: 1, High: 2, Critical: 3 };
-  const BAND_FILL = { Low: "#E4E6E9", Medium: "#E8B84A", High: "#B4500F", Critical: "#8E1B1B" };
+  // Chart and network colours are CSS tokens (styles.css :root), so light and dark themes both apply.
+  const BAND_TOKEN = { Low: "low", Medium: "medium", High: "high", Critical: "critical" };
   const STATUS_FOR = { accept: "In review", escalate: "Escalated", close: "Closed", assign: "In review" };
   const TEAMS = ["AML", "Fraud", "Safer Gambling"];
   const CONFIDENCE = ["High", "Medium", "Low"];
@@ -120,6 +121,26 @@
     get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch { /* not persisted */ } },
   };
+
+  // --- Light / dark theme ----------------------------------------------------------------
+  // index.html applies a stored choice before first paint; with none, the system setting applies.
+  const THEME_KEY = "olg.theme";
+  const SYSTEM_DARK = matchMedia("(prefers-color-scheme: dark)");
+  const isDark = () => (document.documentElement.dataset.theme || (SYSTEM_DARK.matches ? "dark" : "light")) === "dark";
+  function syncThemeButton() {
+    const dark = isDark(), btn = $("#theme-toggle");
+    btn.setAttribute("aria-pressed", String(dark));
+    $("#theme-toggle-label").textContent = dark ? "Dark" : "Light";
+    btn.title = dark ? "Dark theme on. Switch to light" : "Light theme on. Switch to dark";
+  }
+  $("#theme-toggle").addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    store.set(THEME_KEY, next);
+    syncThemeButton();
+  });
+  SYSTEM_DARK.addEventListener("change", syncThemeButton);
+  syncThemeButton();
 
   // --- Loading --------------------------------------------------------------------------
 
@@ -587,22 +608,22 @@
           <text x="0" y="${y + 32}" class="t-muted">Peer median <tspan class="t-mono">${esc(f(pr.median))}</tspan></text>
           <text x="0" y="${y + 48}" class="t-muted">Middle 50% <tspan class="t-mono">${esc(f(pr.q1))}–${esc(f(pr.q3))}</tspan></text>
           <text x="0" y="${y + 64}" class="t-muted">${pr.n} ${pr.active_only ? "active " : ""}peers</text>
-          <line x1="${X(pr.p05)}" x2="${X(pr.p95)}" y1="${axis}" y2="${axis}" stroke="#A9A69D" stroke-width="2"/>
-          <rect x="${X(pr.q1)}" y="${axis - 7}" width="${Math.max(2, X(pr.q3) - X(pr.q1))}" height="14" fill="#D5D3CC"/>
-          <line x1="${X(pr.median)}" x2="${X(pr.median)}" y1="${axis - 11}" y2="${axis + 11}" stroke="#545A62" stroke-width="2"/>
-          ${xb != null ? `<circle cx="${xb}" cy="${axis}" r="6" fill="#FFFFFF" stroke="#1A1D21" stroke-width="2"/>
+          <line x1="${X(pr.p05)}" x2="${X(pr.p95)}" y1="${axis}" y2="${axis}" style="stroke:var(--chart-faint)" stroke-width="2"/>
+          <rect x="${X(pr.q1)}" y="${axis - 7}" width="${Math.max(2, X(pr.q3) - X(pr.q1))}" height="14" style="fill:var(--chart-band)"/>
+          <line x1="${X(pr.median)}" x2="${X(pr.median)}" y1="${axis - 11}" y2="${axis + 11}" style="stroke:var(--chart-mid)" stroke-width="2"/>
+          ${xb != null ? `<circle cx="${xb}" cy="${axis}" r="6" style="fill:var(--card);stroke:var(--chart-ink)" stroke-width="2"/>
             <text x="${xb}" y="${axis + 26}" text-anchor="${anchor(xb)}" class="t-mono">Baseline ${esc(f(m.baseline))}</text>` : ""}
-          <circle cx="${xc}" cy="${axis}" r="6" fill="#1A1D21"/>
+          <circle cx="${xc}" cy="${axis}" r="6" style="fill:var(--chart-ink)"/>
           <text x="${xc}" y="${axis - 16}" text-anchor="${anchor(xc)}" class="t-mono" font-weight="600">Now ${esc(f(m.current))}</text>
         </g>`;
     }).join("");
     return `
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`Peer comparison. ${summary.join(". ")}.`)}">${rows}</svg>
       <div class="legend">
-        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="#1A1D21"/></svg>Last 30 days</span>
-        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="#fff" stroke="#1A1D21" stroke-width="2"/></svg>Own 90-day baseline (per 30 days)</span>
-        <span><svg width="22" height="14" aria-hidden="true"><rect x="0" y="2" width="22" height="10" fill="#D5D3CC"/><line x1="11" x2="11" y1="0" y2="14" stroke="#545A62" stroke-width="2"/></svg>Middle 50% of peers and median</span>
-        <span><svg width="22" height="14" aria-hidden="true"><line x1="0" x2="22" y1="7" y2="7" stroke="#A9A69D" stroke-width="2"/></svg>Peers 5th–95th percentile</span>
+        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" style="fill:var(--chart-ink)"/></svg>Last 30 days</span>
+        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" style="fill:var(--card);stroke:var(--chart-ink)" stroke-width="2"/></svg>Own 90-day baseline (per 30 days)</span>
+        <span><svg width="22" height="14" aria-hidden="true"><rect x="0" y="2" width="22" height="10" style="fill:var(--chart-band)"/><line x1="11" x2="11" y1="0" y2="14" style="stroke:var(--chart-mid)" stroke-width="2"/></svg>Middle 50% of peers and median</span>
+        <span><svg width="22" height="14" aria-hidden="true"><line x1="0" x2="22" y1="7" y2="7" style="stroke:var(--chart-faint)" stroke-width="2"/></svg>Peers 5th–95th percentile</span>
         <span>Money and count scales are logarithmic.</span>
       </div>`;
   }
@@ -673,7 +694,7 @@
     const curFrom = new Date(tl.current_window_start), baseFrom = new Date(tl.baseline_start);
     const weekEnd = (w) => new Date(new Date(w.week_start).getTime() + 7 * 86400000);
     const zone = (w) => (weekEnd(w) > curFrom ? "cur" : weekEnd(w) > baseFrom ? "base" : "old");
-    const fill = { cur: "#1A1D21", base: "#545A62", old: "#A9A69D" };
+    const fill = { cur: "var(--chart-ink)", base: "var(--chart-mid)", old: "var(--chart-faint)" };
     const metrics = [["deposits", "Deposits"], ["turnover", "Amount bet"], ["net_loss", "Net loss"]];
     const sum = (k, z) => tl.weeks.filter((w) => zone(w) === z).reduce((s, w) => s + w[k], 0);
     const rows = metrics.map(([k, label], r) => {
@@ -683,11 +704,11 @@
       const bars = tl.weeks.map((w, i) => {
         const v = w[k], bh = Math.max(v ? 1 : 0, Math.abs(v) * sc);
         return `<rect x="${(labelW + i * bw + 1).toFixed(1)}" y="${(v >= 0 ? zero - bh : zero).toFixed(1)}"
-          width="${(bw - 2).toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill[zone(w)]}"><title>Week of ${esc(w.week_start)}: ${esc(fmt.money(v))}</title></rect>`;
+          width="${(bw - 2).toFixed(1)}" height="${bh.toFixed(1)}" style="fill:${fill[zone(w)]}"><title>Week of ${esc(w.week_start)}: ${esc(fmt.money(v))}</title></rect>`;
       }).join("");
       return `<g><text x="0" y="${y0 + 14}" font-weight="600">${label}</text>
         <text x="0" y="${y0 + 30}" class="t-muted">Peak week <tspan class="t-mono">${esc(fmt.money(max))}</tspan></text>
-        <line x1="${labelW}" x2="${W - padR}" y1="${zero}" y2="${zero}" stroke="#D5D3CC"/>${bars}</g>`;
+        <line x1="${labelW}" x2="${W - padR}" y1="${zero}" y2="${zero}" style="stroke:var(--chart-band)"/>${bars}</g>`;
     }).join("");
     const H = metrics.length * rowH + 18, firstCur = tl.weeks.findIndex((w) => zone(w) === "cur");
     const xCur = labelW + Math.max(0, firstCur) * bw;
@@ -697,12 +718,12 @@
       <div class="section-head"><h3 id="tl-h">Activity over time</h3>
         <span class="muted">Weekly totals, ${esc(tl.weeks[0].week_start)} to ${esc(tl.weeks[n - 1].week_start)}</span></div>
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`Weekly activity. ${desc}.`)}">${rows}
-        <line x1="${xCur}" x2="${xCur}" y1="0" y2="${H - 14}" stroke="#1F4E79" stroke-dasharray="3 3"/>
+        <line x1="${xCur}" x2="${xCur}" y1="0" y2="${H - 14}" style="stroke:var(--chart-marker)" stroke-dasharray="3 3"/>
         <text x="${xCur + 4}" y="${H - 2}" class="t-muted">Last 30 days →</text></svg>
       <div class="legend">
-        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" fill="#1A1D21"/></svg>Last 30 days</span>
-        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" fill="#545A62"/></svg>90-day baseline</span>
-        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" fill="#A9A69D"/></svg>Earlier</span>
+        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" style="fill:var(--chart-ink)"/></svg>Last 30 days</span>
+        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" style="fill:var(--chart-mid)"/></svg>90-day baseline</span>
+        <span><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12" style="fill:var(--chart-faint)"/></svg>Earlier</span>
       </div>
     </section>`;
   }
@@ -749,18 +770,17 @@
       const [x, y] = pos[i];
       // Label near the outer account (70% along the line) so labels don't pile up in the middle.
       const lx = cx + (x - cx) * 0.7, ly = cy + (y - cy) * 0.7;
-      return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#A9A69D" stroke-width="2"/>
+      return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" style="stroke:var(--chart-faint)" stroke-width="2"/>
         ${same ? "" : `<text x="${lx}" y="${ly - 6}" text-anchor="middle" class="t-muted edge-label">${esc(labels[i])}</text>`}`;
     }).join("");
     const node = (x, y, pid, score, band, alertId, isSelf) => {
       const canOpen = !isSelf && alertId && state.alerts.some((a) => a.alert_id === alertId);
-      const dark = band === "High" || band === "Critical";
       return `<g class="node${canOpen ? " clickable" : ""}" ${canOpen ? `data-open-alert="${esc(alertId)}" tabindex="0" role="button"
         aria-label="Open ${esc(pid)}, score ${score}"` : ""}>
-        <circle cx="${x}" cy="${y}" r="${isSelf ? 30 : 24}" fill="${BAND_FILL[band] || "#E4E6E9"}" stroke="#1A1D21"
+        <circle cx="${x}" cy="${y}" r="${isSelf ? 30 : 24}" style="fill:var(--net-${BAND_TOKEN[band] || "low"});stroke:var(--chart-ink)"
           stroke-width="${isSelf ? 3 : 1}"/>
-        <text x="${x}" y="${y + 4}" text-anchor="middle" class="t-mono" fill="${dark ? "#FFFFFF" : "#1A1D21"}">${score}</text>
-        ${isSelf ? `<rect x="${x - 34}" y="${y + 33}" width="68" height="18" fill="#FFFFFF"/>` : ""}
+        <text x="${x}" y="${y + 4}" text-anchor="middle" class="t-mono" style="fill:var(--net-${BAND_TOKEN[band] || "low"}-ink)">${score}</text>
+        ${isSelf ? `<rect x="${x - 34}" y="${y + 33}" width="68" height="18" style="fill:var(--card)"/>` : ""}
         <text x="${x}" y="${y + (isSelf ? 46 : 40)}" text-anchor="middle" class="t-mono" font-weight="${isSelf ? 600 : 500}">${esc(pid)}</text></g>`;
     };
     return `<svg viewBox="0 0 ${W} ${H}" role="img" class="network-svg"
@@ -965,7 +985,7 @@
     const pts = series.map((v, i) => `${(i * W / (series.length - 1)).toFixed(1)},${(H - 2 - (v / max) * (H - 4)).toFixed(1)}`).join(" ");
     const x4 = (W * (series.length - 4)) / (series.length - 1);
     return `<svg width="${W}" height="${H}" aria-hidden="true" class="spark"><rect x="${x4}" y="0" width="${W - x4}" height="${H}"
-      fill="#EDECE7"/><polyline points="${pts}" fill="none" stroke="#1A1D21" stroke-width="1.5"/></svg>`;
+      style="fill:var(--chart-shade)"/><polyline points="${pts}" fill="none" style="stroke:var(--chart-ink)" stroke-width="1.5"/></svg>`;
   }
 
   // "×7" reads better than "+600%", and a flag that was near zero before is simply "new".
