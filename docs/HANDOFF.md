@@ -44,13 +44,50 @@ Quick start: `.\run_demo.ps1` (Windows) or `./run_demo.sh`.
 
 Everything undecided is collected in **one place**: the [Open items](#6-open-items) list at the bottom of this page, including who should decide each item and where it gets decided.
 
-## 4. Your first three tasks
+## 4. Who picks up what (from 2026-10-15)
 
-The original first tasks (scaffold, step 1, mock alerts) are done. Next:
+The functional build is complete against the challenge brief (all four requirements, all five bonus items and
+every "winning solution" point; see the README). What remains is polish, robustness and the presentation.
+Work on your own git branch and merge into `main`; the two lists below touch different folders, so they
+shouldn't collide.
 
-1. **Assign owners and confirm decisions**: fill in the team, then review the resolved open items below (especially #4, #5, #7, #8), since they were settled by the build, not by the team.
-2. **Rehearse the demo** in `docs/DEMO.md` from a clean clone and set the time limit (#14).
-3. **Polish the dashboard visually** (frontend teammate) and **add tests + a database** (backend teammate). Remaining stretch: Jube integration (decisions already go through `POST /alerts/{id}/decision`) and peer-deviation recall (still the weakest type; the watchlist catches some of the misses).
+**Frontend owner** (`frontend/` only):
+1. Visual polish of the queue, the tabbed detail panel (Overview / Evidence / Activity / Network / Ask AI) and
+   the Overview screen. The structure and every data hook exist; keep the rules in `DESIGN.md` (number + label
+   for risk, no colour-only meaning, no vanity KPI tiles, "SYNTHETIC DATA" visible).
+2. Charts: hover details on the weekly timeline, a nicer network graph (`networkGraph()` in `app.js`).
+3. Update `frontend/mock/alerts.json` so the offline fallback shows the new fields (confidence, mitigating
+   factors, behaviour group, `points_total`). The code already tolerates them being absent.
+4. Accessibility pass on the new tabs, overview and investigator box (keyboard and screen reader).
+5. Screenshots for the slides.
+
+**Backend owner** (`backend/` only):
+1. Automated tests (pytest): pipeline determinism, every API endpoint, the 422 cases (close without reason,
+   assign without team, decision without investigator name), the AI number check (`ai.unverified_numbers`).
+2. Confirm it runs on Python 3.11 / 3.12 (only 3.14 is tested; see open item #4).
+3. AI quality: try a larger free model (e.g. `ollama pull qwen2.5:7b`, then `LLM_MODEL=qwen2.5:7b` in `.env`) and
+   compare the showcase summaries; `llama3.2` (3B) occasionally misreads meaning even when every number is right.
+4. Optional: SQLite for decisions instead of `data/decisions.json`; better peer-deviation recall (72%, the
+   weakest type); Jube integration through `POST /alerts/{id}/decision`.
+
+**Whole team / team lead:**
+1. Fill in team names and roles (README "Team", open items #1 and #2).
+2. Slides: problem → solution → live demo → results (numbers in `docs/VALIDATION.md`).
+3. Rehearse `docs/DEMO.md` at least twice after the polish is merged (screens may move) and set the time
+   limit (open item #14). Check the ThunderHacks submission rules and deadline.
+
+**Rules that keep the demo and the numbers valid:**
+- Run the full pipeline (`.\run_demo.ps1`, about 3 minutes) and check every line under "Checks" in
+  `docs/VALIDATION.md` still says **yes** before merging any backend change.
+- Don't change `THRESHOLDS`, points or the generator config without rerunning validation: the showcase alert IDs
+  and every number in `docs/DEMO.md` and the README depend on them. If they change, update both docs.
+- The pipeline must stay deterministic (same seed → identical files); avoid iterating over Python sets when
+  writing outputs.
+- Never commit the challenge PDF, real data or `.env` (all git-ignored).
+
+**For AI coding agents picking this up:** read this file, then `README.md`, `docs/WORKFLOW.md` and `DESIGN.md`;
+run `.\run_demo.ps1` once; log your prompts in `docs/PROMPTS.md` as the earlier sessions did (entries 1.1, 7.1,
+7.2 describe how the current build was made and what went wrong along the way).
 
 ## 5. Definition of done (hackathon demo)
 
@@ -81,7 +118,7 @@ The **Status** column records what the build used. "Built as" items work but wer
 | 8 | Risk-band cut-offs (draft: Low 0–39, Medium 40–69, High 70–89, Critical 90–100) | Detection owner, after validation | `DESIGN.md` §2, `detect.py` | Kept as drafted after validation; alerts at 40+ |
 | 9 | Jube integration method (HTTP API vs manual import), version and setup (Docker if supported) | Backend owner (step 5) | `WORKFLOW.md` step 5, README "Getting started" | Open; decisions stored in `data/decisions.json` for now |
 | 10 | Chart library (hand-built SVG vs Chart.js) | Frontend owner (step 6) | `DESIGN.md` §7.4 | Built as: hand-built SVG (no dependency) |
-| 11 | LLM provider, if summaries are used at all | Team lead + bonus owner (step 7) | `WORKFLOW.md` step 7, README "AI features" | Built as: auto-detects free Ollama, Groq or Gemini; built-in fallbacks without one. Pick one for the demo (Ollama suggested: offline) |
+| 11 | LLM provider, if summaries are used at all | Team lead + bonus owner (step 7) | `WORKFLOW.md` step 7, README "AI features" | Built as: auto-detects free Ollama, Groq or Gemini; built-in fallbacks without one. Ollama + llama3.2 installed and tested on the build machine; a larger model (e.g. qwen2.5:7b) is worth trying |
 | 12 | Deployment target (assumed: local laptop demo) | Team lead | `PRODUCT.md` Stack | Built as: local laptop; the API also serves the dashboard at `/app/` |
 | 13 | Dark theme for the dashboard (not needed for MVP) | Frontend owner | `DESIGN.md` §2 | Open (not built) |
 | 14 | Demo length, slide location, submission deadline | Team lead (check ThunderHacks rules) | `WORKFLOW.md` step 8, `docs/DEMO.md` | Open |

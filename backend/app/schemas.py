@@ -107,7 +107,7 @@ class AlertDetail(BaseModel):
     anomaly_type_labels: list[str]
     top_reason: TopReason
     reasons: list[Reason]
-    points_total: int = Field(description="Sum of reason points; the score is this capped at 100")
+    points_total: int = Field(description="Sum of counted reason points; the score is these points, soft-capped above 70 (max 99)")
     recommended_action: RecommendedAction
     profile: Profile
     peer_group: str

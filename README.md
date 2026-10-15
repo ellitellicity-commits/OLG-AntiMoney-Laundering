@@ -139,7 +139,7 @@ Everything in `data/` (`.csv`, `.parquet`, `.json`) is generated and git-ignored
 ./run_demo.sh                  # macOS / Linux / Git Bash
 ```
 
-This creates `.venv`, installs dependencies, runs the pipeline (about a minute), starts the API and opens the
+This creates `.venv`, installs dependencies, runs the pipeline (about 3 minutes, including the cross-seed test), starts the API and opens the
 dashboard at http://127.0.0.1:8000/app/. Add `-SkipPipeline` (`--skip-pipeline`) to reuse existing data.
 If PowerShell blocks the script: `powershell -ExecutionPolicy Bypass -File .\run_demo.ps1`.
 
