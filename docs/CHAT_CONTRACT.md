@@ -99,10 +99,10 @@ Everything in this section that the plan's §11 does not spell out is a frontend
 
 | # | Item | Status |
 |---|---|---|
-| 1 | **Context sort format:** `"-key"` = descending, `"key"` = ascending, keys `score`, `last_activity`, `ai`, `player_id`, `top_reason`, `team`, `status`. **Filters shape:** always all eight keys (`band`, `team`, `type`, `status`, `confidence`, `min_score`, `search`, `include_watchlist`), `null` when unset (§2). | PROPOSED, needs backend confirmation |
-| 2 | **Action type names:** `sort` (field `sort`) and `show_watchlist` (no fields) for the plan's "Sort by <key>" and "Show watchlist". The plan names only `open_alert` and `apply_filter`. | PROPOSED, needs backend confirmation |
-| 3 | **Offline answer shape:** the normal response with `provider: null`, `model: null` and the offline note in `answer` (example 4.7). | PROPOSED, needs backend confirmation |
-| 4 | **Notes response shapes:** POST returns the stored note; DELETE returns `{note_id, alert_id, removed, removed_by, recorded_at}`; `GET /alerts/{id}` returns `notes: [...]` with the same note objects (example 4.8). The plan defines only the requests. | PROPOSED, needs backend confirmation |
+| 1 | **Context sort format:** `"-key"` = descending, `"key"` = ascending, keys `score`, `last_activity`, `ai`, `player_id`, `top_reason`, `team`, `status`. **Filters shape:** always all eight keys (`band`, `team`, `type`, `status`, `confidence`, `min_score`, `search`, `include_watchlist`), `null` when unset (§2). | **Confirmed** (backend, `/chat` on branch `chat-backend`) |
+| 2 | **Action type names:** `sort` (field `sort`) and `show_watchlist` (no fields) for the plan's "Sort by <key>" and "Show watchlist". The plan names only `open_alert` and `apply_filter`. | **Confirmed** (backend) |
+| 3 | **Offline answer shape:** the normal response with `provider: null`, `model: null` and the offline note in `answer` (example 4.7). | **Confirmed** (backend): also used when every provider fails |
+| 4 | **Notes response shapes:** POST returns the stored note; DELETE returns `{note_id, alert_id, removed, removed_by, recorded_at}`; `GET /alerts/{id}` returns `notes: [...]` with the same note objects (example 4.8). The plan defines only the requests. | PROPOSED; notes endpoints not built yet (next backend step) |
 
 Required on the backend side (from the plan, not proposals):
 
@@ -265,3 +265,18 @@ Errors: `422` when `investigator` is empty; `404` for an unknown alert.
 ```
 
 Must render as literal text; only `ALR-00405` becomes a link.
+
+## 5. Backend implementation notes (`/chat`, branch `chat-backend`)
+
+No shapes changed. How the backend fills the contract:
+
+- **Actions are built by the backend from its retrieval, never by the model:** `apply_filter` when the question names filters that differ from the queue's, `sort` for ranking words ("most recent"), `show_watchlist` when the question mentions the watchlist, then `open_alert` for cases named in the answer (not the open alert). At most 4. `label` is always sent.
+- **`cases_used`** = alerts named in the answer, in order (player IDs resolved to their alert); in the alert view with no ID named, the open alert.
+- **`unknown_ids`** = IDs in the answer that resolve to no alert or watchlist entry.
+- **`assumption`** = the model's first line when it starts with "Assumption:"; removed from `answer`.
+- **Never ask back:** trailing questions and offers are stripped; a question inside the answer triggers one regeneration, then the offending sentences are stripped.
+- **Provider:** Groq first; a short Groq rate limit (up to 10 s) is waited out once, otherwise the same request goes to local Ollama (`fallback_used: true`). If none answers, the offline shape (example 4.7) is returned with HTTP 200.
+- **Evidence size:** capped at about 4,000 tokens, below the plan's 6,000 words, because Groq's free tier allows 8,000 tokens per minute for the whole request. Queue rows are trimmed first; `left_out` tells the model how many were cut.
+- **Not built:** plan section 7 layer 2 (model-driven lookup tools). Layer 1 retrieval answers the plan's test questions.
+- **Known limit of the number check:** it confirms every number appears somewhere in the evidence, not that it is attached to the right fact.
+

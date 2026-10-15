@@ -289,3 +289,52 @@ class SearchOut(BaseModel):
     model: str | None
     total: int
     alerts: list[AlertSummary]
+
+
+# --- Chat panel (docs/CHAT_CONTRACT.md) ------------------------------------------------------
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant", "divider"]
+    content: str = Field("", max_length=8000)
+
+
+class ChatFilters(BaseModel):
+    band: str | None = None
+    team: str | None = None
+    type: str | None = None
+    status: str | None = None
+    confidence: str | None = None
+    min_score: int | None = None
+    search: str | None = None
+    include_watchlist: bool | None = False
+
+
+class ChatContext(BaseModel):
+    view: Literal["queue", "overview", "alert"] = "queue"
+    alert_id: str | None = None
+    filters: ChatFilters = Field(default_factory=ChatFilters)
+    sort: str = "-score"
+    visible_count: int | None = None
+
+
+class ChatIn(BaseModel):
+    messages: list[ChatMessage] = Field(default_factory=list, max_length=50,
+                                        description="Earlier conversation, oldest first (the last 12 are used)")
+    context: ChatContext = Field(default_factory=ChatContext)
+    question: str = Field(..., min_length=1, max_length=1000)
+
+
+class ChatOut(BaseModel):
+    answer: str
+    provider: str | None
+    model: str | None
+    fallback_used: bool
+    verified: bool
+    unverified_numbers: list[str]
+    unknown_ids: list[str]
+    cases_used: list[str]
+    actions: list[dict[str, Any]] = Field(default_factory=list, max_length=4, description=(
+        "Whitelisted buttons, built by the backend (never by the model): "
+        '{"type":"open_alert","alert_id","label"} | {"type":"apply_filter","filters","label"} | '
+        '{"type":"sort","sort","label"} | {"type":"show_watchlist","label"}'))
+    assumption: str | None = None
