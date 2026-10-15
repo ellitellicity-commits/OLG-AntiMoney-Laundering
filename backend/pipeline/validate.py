@@ -150,8 +150,9 @@ def evaluate() -> dict:
     card_path = MODELS / "model_card.json"
     model_card = json.loads(card_path.read_text(encoding="utf-8")) if card_path.exists() else None
     legacy_fp_rate = len(legacy_alerted - injected) / len(normal_ids)
-    benign_alerts = (pd.Series([benign.get(p, "") or "none" for p in alerted - injected])
-                     .value_counts().to_dict())
+    # Sorted so equal counts always list in the same order (set order varies between Python runs).
+    fp_patterns = pd.Series([benign.get(p, "") or "none" for p in sorted(alerted - injected)]).value_counts()
+    benign_alerts = {k: int(v) for k, v in sorted(fp_patterns.items(), key=lambda kv: (-kv[1], kv[0]))}
 
     # Example false positives: highest-scoring non-injected alerts, one per pattern where possible.
     fps = scores[scores.alert & ~scores.player_id.isin(injected)].copy()

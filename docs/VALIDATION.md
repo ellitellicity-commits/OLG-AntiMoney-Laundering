@@ -45,7 +45,7 @@ Legacy rules: deposits_30d >= $3,000; single deposit >= $1,000; any transaction 
 | Alerts raised | 296 | 394 |
 | Injected players caught | 96% | 91% |
 
-Combined-score false positives by planted benign pattern: screening_false_positive: 6, benign_surge: 5, steady_high_value: 3, high_roller: 3, benign_travel: 1, none: 1.
+Combined-score false positives by planted benign pattern: screening_false_positive: 6, benign_surge: 5, high_roller: 3, steady_high_value: 3, benign_travel: 1, none: 1.
 
 ### Three example false positives
 
