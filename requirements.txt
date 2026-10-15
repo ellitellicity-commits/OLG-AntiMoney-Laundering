@@ -7,3 +7,5 @@ scikit-learn
 faker
 shap
 networkx
+pytest
+httpx

@@ -249,6 +249,16 @@ def tok(rng, prefix, n=8):
     return f"{prefix}-{''.join(rng.choice(list('0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'), n))}"
 
 
+def plausible(age: str, occ: str) -> bool:
+    if occ == "Retired":
+        return age in ("55-64", "65+")
+    if occ == "Student":
+        return age in ("18-24", "25-34")
+    if occ in ("Physician", "Lawyer", "Executive"):
+        return age != "18-24"
+    return age != "65+" or occ in ("Small business owner", "Retail associate", "Administrative assistant")
+
+
 def make_players(rng, n, end: datetime):
     occ_names = list(OCCUPATION_WEIGHTS)
     occ_p = np.array([OCCUPATION_WEIGHTS[o] for o in occ_names])
@@ -257,10 +267,8 @@ def make_players(rng, n, end: datetime):
     for i in range(n):
         age = rng_choice(rng, list(AGE_WEIGHTS), list(AGE_WEIGHTS.values()))
         occ = rng_choice(rng, occ_names, occ_p)
-        if age == "18-24" and occ in ("Retired", "Physician", "Lawyer", "Executive"):
-            occ = "Student"
-        if age == "65+" and occ == "Student":
-            occ = "Retired"
+        while not plausible(age, occ):
+            occ = rng_choice(rng, occ_names, occ_p)
         bands = OCCUPATIONS[occ]
         inc = rng_choice(rng, list(bands), list(bands.values()))
         region = rng_choice(rng, list(REGION_WEIGHTS), list(REGION_WEIGHTS.values()))

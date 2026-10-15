@@ -97,6 +97,7 @@ class Alert(BaseModel):
     recommended_action: RecommendedAction
     summary: str
     iforest_percentile: float
+    raw_points: int = Field(..., description="Sum of reason points before caps; breaks ties between equal scores")
     latest_decision: Optional[LatestDecision] = None
 
 

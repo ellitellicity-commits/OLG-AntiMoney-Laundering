@@ -5,19 +5,19 @@
 ## Summary
 
 - Players: **5,000**, of which **200** have injected risky behaviour.
-- Alerts (score >= 40): **194**; 93.3% of alerts are injected cases.
-- Overall recall: **90.5%**.
-- False-positive rate on normal players: **0.27%** (13 players). Context-free rules: 0.00% (15 alerts in total).
+- Alerts (score >= 40): **193**; 94.8% of alerts are injected cases.
+- Overall recall: **91.5%**.
+- False-positive rate on normal players: **0.21%** (10 players). Context-free rules: 0.00% (11 alerts in total).
 
 ## Recall per anomaly type
 
 | Scenario | Players | Recall | Typed recall* | Rules-only recall | Median score |
 |---|---:|---:|---:|---:|---:|
-| behaviour_change | 40 | 90% | 90% | 0% | 81 |
-| income_mismatch | 40 | 100% | 88% | 2% | 90 |
-| linked_ring | 40 | 100% | 100% | 28% | 100 |
-| location_anomaly | 40 | 98% | 98% | 0% | 91 |
-| peer_deviation | 40 | 65% | 65% | 8% | 45 |
+| behaviour_change | 40 | 98% | 98% | 0% | 82 |
+| income_mismatch | 40 | 92% | 85% | 0% | 92 |
+| linked_ring | 40 | 100% | 100% | 22% | 100 |
+| location_anomaly | 40 | 100% | 100% | 0% | 100 |
+| peer_deviation | 40 | 68% | 68% | 5% | 42 |
 
 \* Typed recall: the alert also carries a reason of the matching anomaly type, i.e. it was caught for the right reason.
 
@@ -27,10 +27,10 @@ Share of the top-k ranked players who are injected risky cases.
 
 | k | Combined score | Rules only (fixed CAD thresholds) | Isolation Forest only |
 |---:|---:|---:|---:|
-| 25 | 100% | 96% | 100% |
-| 50 | 100% | 86% | 100% |
-| 100 | 100% | 67% | 100% |
-| 200 | 92% | 34% | 85% |
+| 25 | 100% | 88% | 100% |
+| 50 | 100% | 72% | 100% |
+| 100 | 100% | 55% | 100% |
+| 200 | 94% | 30% | 84% |
 
 The rules-only baseline uses context-free thresholds (deposits >= $10,000 in 30 days, any single deposit >= $3,000, withdrawals >= $10,000, any activity outside the home region). It never looks at income, peers or the player's own history.
 
@@ -40,56 +40,66 @@ Share of players in each scenario on whom the reason code fired.
 
 | Reason code | income_mismatch | peer_deviation | location_anomaly | behaviour_change | linked_ring | normal |
 |---|---:|---:|---:|---:|---:|---:|
-| `CASH_IN_CASH_OUT` | 5% | 0% | 2% | 0% | 0% | 0% |
-| `DEPOSIT_SPIKE` | 40% | 10% | 52% | 90% | 55% | 0% |
-| `IMPOSSIBLE_TRAVEL` | 0% | 0% | 85% | 0% | 0% | 0% |
-| `INCOME_MISMATCH` | 88% | 32% | 0% | 25% | 92% | 0% |
-| `LATE_NIGHT_SHIFT` | 0% | 5% | 12% | 95% | 0% | 3% |
+| `CASH_IN_CASH_OUT` | 8% | 0% | 8% | 2% | 0% | 0% |
+| `DEPOSIT_SPIKE` | 52% | 5% | 65% | 100% | 32% | 1% |
+| `IMPOSSIBLE_TRAVEL` | 0% | 0% | 88% | 0% | 0% | 0% |
+| `INCOME_MISMATCH` | 88% | 20% | 2% | 18% | 82% | 0% |
+| `LATE_NIGHT_SHIFT` | 2% | 0% | 38% | 88% | 0% | 2% |
 | `LINKED_PLAYERS` | 0% | 0% | 0% | 0% | 100% | 0% |
-| `LOSS_CHASING` | 2% | 0% | 0% | 95% | 0% | 0% |
-| `MODEL_OUTLIER` | 92% | 65% | 100% | 100% | 100% | 1% |
+| `LOSS_CHASING` | 0% | 0% | 5% | 98% | 0% | 0% |
+| `MODEL_OUTLIER` | 85% | 60% | 100% | 100% | 100% | 2% |
 | `NEW_DEVICE_AWAY` | 0% | 0% | 100% | 0% | 0% | 0% |
-| `NEW_DEVICE_NEW_PAYOUT` | 0% | 0% | 90% | 0% | 0% | 0% |
+| `NEW_DEVICE_NEW_PAYOUT` | 0% | 0% | 88% | 0% | 0% | 0% |
 | `OPPOSITE_BETTING_LINKED` | 0% | 0% | 0% | 0% | 100% | 0% |
-| `PEER_DEVIATION` | 100% | 98% | 50% | 57% | 92% | 3% |
-| `STAKE_ESCALATION` | 38% | 0% | 0% | 10% | 48% | 0% |
+| `PEER_DEVIATION` | 98% | 98% | 60% | 60% | 85% | 5% |
+| `STAKE_ESCALATION` | 48% | 0% | 0% | 12% | 38% | 0% |
 | `UNEXPECTED_LOCATION` | 0% | 0% | 100% | 0% | 0% | 0% |
+
+## Peer z-threshold sweep
+
+The same data re-scored with different peer-deviation thresholds. The chosen value is in bold.
+
+| z threshold | Peer-deviation recall | Overall recall* | False positives | Precision@200 |
+|---:|---:|---:|---:|---:|
+| 2.0 | 80% | 96% | 22 | 90% |
+| **2.5** | **68%** | **92%** | **10** | **94%** |
+| 3.0 | 52% | 88% | 2 | 94% |
+| 3.5 | 40% | 86% | 2 | 92% |
+
+\* Mean of per-scenario recall.
 
 ## Band mix
 
 | Scenario | Critical | High | Medium | Low |
 |---|---:|---:|---:|---:|
-| behaviour_change | 14 | 8 | 14 | 4 |
-| income_mismatch | 23 | 9 | 8 | 0 |
-| linked_ring | 37 | 3 | 0 | 0 |
-| location_anomaly | 21 | 7 | 11 | 1 |
-| normal | 0 | 0 | 13 | 4787 |
-| peer_deviation | 5 | 4 | 17 | 14 |
+| behaviour_change | 13 | 12 | 14 | 1 |
+| income_mismatch | 25 | 6 | 6 | 3 |
+| linked_ring | 36 | 0 | 4 | 0 |
+| location_anomaly | 25 | 8 | 7 | 0 |
+| normal | 0 | 0 | 10 | 4790 |
+| peer_deviation | 1 | 6 | 20 | 13 |
 
 ## Example false positives
 
-### P04904: score 65 (Medium)
+### P02310: score 59 (Medium)
 
-- `OPPOSITE_BETTING_LINKED` (+30): Placed 6 bets on the opposite side of the same event as an account sharing its device, payment method or address.
-- `PEER_DEVIATION` (+25): Bets per day of 4.6 sits in the top 0.1% of the peer group (45-54 | 60-100k | Southwestern Ontario, n=40).
-- `MODEL_OUTLIER` (+10): The Isolation Forest ranks this player more unusual than 97.4% of all players; the most unusual inputs are opposite bets with linked, chase deposits 30d, linked players.
+- `PEER_DEVIATION` (+34): Amount staked (30 days) of $4,741 (12.1x the peer median of $392) sits in the top 0.1% of the peer group (25-34 | 150k+, n=62). Also unusual: average stake.
+- `DEPOSIT_SPIKE` (+20): Deposited $1,890 in the last 30 days against a usual $577 per 30 days (3.1x).
+- `MODEL_OUTLIER` (+5): The Isolation Forest ranks this player more unusual than 95.6% of all players; the most unusual inputs are avg stake 30d, deposit change ratio, deposits 30d.
 
-**Why it fired:** This player shares an address or device with a household member and they happened to back opposite sides of the same events. The generator deliberately creates such benign households; an investigator would close this after checking the relationship and the small stakes.
+**Why it fired:** Deposits rose sharply against a modest personal baseline, but spend stays within the declared income band, so no income-mismatch reason fired. A short check of recent activity is enough to close it.
 
-### P02962: score 64 (Medium)
+### P02785: score 46 (Medium)
 
-- `PEER_DEVIATION` (+21): Largest single deposit of $250 (8.3x the peer median of $30.00) sits in the top 2.6% of the peer group (35-44 | 60-100k | Toronto/GTA, n=153).
-- `DEPOSIT_SPIKE` (+20): Deposited $700 in the last 30 days against a usual $127 per 30 days (4.2x).
-- `UNEXPECTED_LOCATION` (+18): 47% of transactions in the last 30 days came from outside Toronto/GTA, including 47% from outside Canada.
-- `MODEL_OUTLIER` (+5): The Isolation Forest ranks this player more unusual than 96.8% of all players; the most unusual inputs are deposit change ratio, share outside home 30d, deposits 30d.
+- `PEER_DEVIATION` (+26): Largest single deposit of $320 (10.7x the peer median of $30.00) sits in the top 4.0% of the peer group (35-44 | 60-100k | Central Ontario, n=50).
+- `DEPOSIT_SPIKE` (+20): Deposited $320 in the last 30 days against a usual $70.00 per 30 days (3.1x).
 
-**Why it fired:** A normal player on a genuine trip outside Ontario. Travel time was plausible, so no impossible-travel reason fired and the score stays in the Medium band.
+**Why it fired:** Deposits rose sharply against a modest personal baseline, but spend stays within the declared income band, so no income-mismatch reason fired. A short check of recent activity is enough to close it.
 
-### P01558: score 60 (Medium)
+### P00393: score 42 (Medium)
 
-- `DEPOSIT_SPIKE` (+30): Deposited $3,710 in the last 30 days against a usual $507 per 30 days (6.8x).
-- `PEER_DEVIATION` (+25): Amount staked (30 days) of $6,668 (16.4x the peer median of $407) sits in the top 0.1% of the peer group (35-44 | 150k+ | Toronto/GTA, n=37).
-- `MODEL_OUTLIER` (+5): The Isolation Forest ranks this player more unusual than 96.1% of all players; the most unusual inputs are deposit change ratio, deposits 30d, avg stake 30d.
+- `PEER_DEVIATION` (+22): Average stake of $188 (12.5x the peer median of $15.06) sits in the top 3.2% of the peer group (35-44 | 100-150k | Toronto/GTA, n=95).
+- `DEPOSIT_SPIKE` (+20): Deposited $400 in the last 30 days against a usual $100 per 30 days (3.0x).
 
 **Why it fired:** Deposits rose sharply against a modest personal baseline, but spend stays within the declared income band, so no income-mismatch reason fired. A short check of recent activity is enough to close it.
 
@@ -97,22 +107,20 @@ Share of players in each scenario on whom the reason code fired.
 
 | Player | Scenario | Score | Reasons fired |
 |---|---|---:|---|
-| P01347 | peer_deviation | 0 | none |
-| P04411 | peer_deviation | 24 | PEER_DEVIATION |
-| P03883 | behaviour_change | 27 | LATE_NIGHT_SHIFT, LOSS_CHASING, MODEL_OUTLIER |
-| P04952 | peer_deviation | 29 | PEER_DEVIATION |
-| P04536 | peer_deviation | 29 | PEER_DEVIATION, MODEL_OUTLIER |
-| P01640 | peer_deviation | 29 | PEER_DEVIATION |
-| P03788 | peer_deviation | 30 | PEER_DEVIATION |
-| P00393 | peer_deviation | 30 | PEER_DEVIATION |
-| P04819 | peer_deviation | 31 | PEER_DEVIATION |
-| P02140 | behaviour_change | 32 | LATE_NIGHT_SHIFT, LOSS_CHASING, MODEL_OUTLIER |
-| P03117 | peer_deviation | 34 | PEER_DEVIATION, MODEL_OUTLIER |
-| P01043 | location_anomaly | 35 | UNEXPECTED_LOCATION, NEW_DEVICE_AWAY, MODEL_OUTLIER |
-| P04713 | behaviour_change | 36 | PEER_DEVIATION, STAKE_ESCALATION, MODEL_OUTLIER |
-| P02663 | peer_deviation | 36 | PEER_DEVIATION |
-| P01574 | peer_deviation | 37 | PEER_DEVIATION, MODEL_OUTLIER |
-| P00572 | behaviour_change | 37 | DEPOSIT_SPIKE, LATE_NIGHT_SHIFT, MODEL_OUTLIER |
-| P01068 | peer_deviation | 38 | PEER_DEVIATION |
-| P04319 | peer_deviation | 38 | PEER_DEVIATION |
-| P00725 | peer_deviation | 39 | PEER_DEVIATION |
+| P01638 | peer_deviation | 0 | none |
+| P04739 | income_mismatch | 20 | INCOME_MISMATCH |
+| P00368 | peer_deviation | 21 | PEER_DEVIATION |
+| P03191 | peer_deviation | 23 | PEER_DEVIATION |
+| P01231 | peer_deviation | 28 | PEER_DEVIATION |
+| P00499 | peer_deviation | 30 | PEER_DEVIATION |
+| P00556 | peer_deviation | 30 | PEER_DEVIATION |
+| P01619 | peer_deviation | 31 | PEER_DEVIATION |
+| P00816 | peer_deviation | 33 | PEER_DEVIATION, MODEL_OUTLIER |
+| P04420 | peer_deviation | 33 | PEER_DEVIATION, MODEL_OUTLIER |
+| P03508 | peer_deviation | 35 | PEER_DEVIATION |
+| P03637 | behaviour_change | 35 | DEPOSIT_SPIKE, LOSS_CHASING, MODEL_OUTLIER |
+| P03909 | peer_deviation | 37 | PEER_DEVIATION |
+| P01935 | peer_deviation | 37 | PEER_DEVIATION, MODEL_OUTLIER |
+| P04589 | income_mismatch | 38 | PEER_DEVIATION |
+| P01689 | peer_deviation | 38 | PEER_DEVIATION |
+| P02715 | income_mismatch | 38 | PEER_DEVIATION |

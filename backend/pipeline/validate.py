@@ -20,9 +20,11 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import ALERT_MIN_SCORE, ROOT, SCORES_DIR, SYNTHETIC_DIR  # noqa: E402
+import detect  # noqa: E402
+from common import ALERT_MIN_SCORE, FEATURES_DIR, ROOT, SCORES_DIR, SYNTHETIC_DIR  # noqa: E402
 
 KS = [25, 50, 100, 200]
+Z_SWEEP = [2.0, 2.5, 3.0, 3.5]
 SCENARIO_TYPES = {
     "income_mismatch": {"income_mismatch", "cash_cycling"},
     "peer_deviation": {"peer_deviation"},
@@ -55,7 +57,7 @@ def evaluate(scores: pd.DataFrame, labels: pd.DataFrame, alerts: list[dict]) -> 
             "median_score": float(grp["score"].median()),
         }
 
-    combined = s.sort_values(["score", "iforest_percentile"], ascending=False, kind="mergesort")
+    combined = s.sort_values(["score", "raw_points", "iforest_percentile"], ascending=False, kind="mergesort")
     rules = s.sort_values(["rules_only_score", "player_id"], ascending=[False, True], kind="mergesort")
     iforest = s.sort_values("iforest_percentile", ascending=False, kind="mergesort")
     pak = {f"p@{k}": {"combined": precision_at_k(combined, k), "rules_only": precision_at_k(rules, k),
@@ -115,6 +117,23 @@ FP_NOTES = {
 FP_NOTE_PRIORITY = ["OPPOSITE_BETTING_LINKED", "UNEXPECTED_LOCATION", "DEPOSIT_SPIKE", "PEER_DEVIATION"]
 
 
+def threshold_sweep(features_dir: Path, labels: pd.DataFrame) -> list[dict]:
+    """Re-score with different peer z-thresholds to show the recall / false-positive trade-off."""
+    f = pd.read_parquet(features_dir / "player_features.parquet")
+    stats = pd.read_parquet(features_dir / "peer_stats.parquet")
+    out = []
+    for z in Z_SWEEP:
+        scores, _ = detect.score_players(f, stats, dict(detect.WEIGHTS, z_threshold=z))
+        s = scores.merge(labels[["player_id", "scenario"]], on="player_id", how="left").fillna({"scenario": "normal"})
+        hit = s["score"] >= ALERT_MIN_SCORE
+        row = {"z_threshold": z, "chosen": z == detect.WEIGHTS["z_threshold"],
+               "false_positives": int((hit & (s["scenario"] == "normal")).sum()),
+               "precision_at_200": round(float((s.head(200)["scenario"] != "normal").mean()), 4)}
+        row.update({f"recall_{k}": round(float(v), 4) for k, v in hit.groupby(s["scenario"]).mean().items() if k != "normal"})
+        out.append(row)
+    return out
+
+
 def to_markdown(rep: dict) -> str:
     o = rep["overall"]
     L = ["# Validation Report", "",
@@ -147,6 +166,18 @@ def to_markdown(rep: dict) -> str:
     L.append("|---|" + "---:|" * len(cols))
     for code, row in sorted(hr.items()):
         L.append(f"| `{code}` | " + " | ".join(f"{row[c]:.0%}" for c in cols) + " |")
+    if rep.get("z_sweep"):
+        L += ["", "## Peer z-threshold sweep", "",
+              "The same data re-scored with different peer-deviation thresholds. The chosen value is in bold.", "",
+              "| z threshold | Peer-deviation recall | Overall recall* | False positives | Precision@200 |", "|---:|---:|---:|---:|---:|"]
+        for r in rep["z_sweep"]:
+            rec = [v for k, v in r.items() if k.startswith("recall_")]
+            cells = [f"{r['z_threshold']}", f"{r.get('recall_peer_deviation', 0):.0%}", f"{sum(rec) / len(rec):.0%}",
+                     f"{r['false_positives']}", f"{r['precision_at_200']:.0%}"]
+            if r["chosen"]:
+                cells = [f"**{c}**" for c in cells]
+            L.append("| " + " | ".join(cells) + " |")
+        L += ["", "\\* Mean of per-scenario recall."]
     L += ["", "## Band mix", "", "| Scenario | Critical | High | Medium | Low |", "|---|---:|---:|---:|---:|"]
     for scen, row in rep["band_mix"].items():
         L.append(f"| {scen} | {row['Critical']} | {row['High']} | {row['Medium']} | {row['Low']} |")
@@ -174,12 +205,15 @@ def to_markdown(rep: dict) -> str:
     return "\n".join(L)
 
 
-def run(scores_dir: Path = SCORES_DIR, synthetic_dir: Path = SYNTHETIC_DIR, docs_dir: Path = ROOT / "docs") -> dict:
+def run(scores_dir: Path = SCORES_DIR, synthetic_dir: Path = SYNTHETIC_DIR, docs_dir: Path = ROOT / "docs",
+        features_dir: Path | None = FEATURES_DIR) -> dict:
     scores = pd.read_csv(scores_dir / "risk_scores.csv")
     labels = pd.read_csv(synthetic_dir / "scenario_labels.csv")
     with open(scores_dir / "alerts.json", encoding="utf-8") as fh:
         alerts = json.load(fh)
     rep = evaluate(scores, labels, alerts)
+    if features_dir is not None and (features_dir / "player_features.parquet").exists():
+        rep["z_sweep"] = threshold_sweep(features_dir, labels)
     with open(scores_dir / "validation_report.json", "w", encoding="utf-8") as fh:
         json.dump(rep, fh, indent=1)
     docs_dir.mkdir(parents=True, exist_ok=True)

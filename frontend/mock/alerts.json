@@ -1,0 +1,905 @@
+[
+ {
+  "alert_id": "A-P02990",
+  "player_id": "P02990",
+  "score": 100,
+  "band": "Critical",
+  "team": "AML",
+  "anomaly_types": [
+   "income_mismatch",
+   "behaviour_change",
+   "peer_deviation",
+   "multivariate_outlier"
+  ],
+  "points_by_type": {
+   "income_mismatch": 40,
+   "behaviour_change": 40,
+   "peer_deviation": 40,
+   "multivariate_outlier": 10
+  },
+  "top_reason_code": "INCOME_MISMATCH",
+  "status": "open",
+  "created_at": "2026-10-01",
+  "profile": {
+   "age_band": "65+",
+   "occupation": "Retired",
+   "income_band": "20-40k",
+   "home_region": "Central Ontario",
+   "signup_date": "2023-11-15"
+  },
+  "peer_group": "65+ | 20-40k",
+  "peer_group_size": 70,
+  "key_metrics": {
+   "deposits_30d": 8290.0,
+   "withdrawals_30d": 8430.97,
+   "turnover_30d": 14478.87,
+   "net_loss_30d": -1013.95,
+   "bet_count_30d": 82.0,
+   "avg_stake_30d": 176.57,
+   "deposits_baseline_m": 40.0,
+   "monthly_income_estimate": 2500.0
+  },
+  "reasons": [
+   {
+    "code": "INCOME_MISMATCH",
+    "anomaly_type": "income_mismatch",
+    "title": "Deposits exceed declared income",
+    "detail": "Deposited $8,290 in the last 30 days, 3.3x the estimated monthly income of $2,500 for a Retired in the 20-40k band.",
+    "evidence": {
+     "deposits_30d": 8290.0,
+     "monthly_income_estimate": 2500.0,
+     "deposit_to_income": 3.316,
+     "income_band": "20-40k",
+     "occupation": "Retired"
+    },
+    "comparison": {
+     "peer_median": 40.0,
+     "own_baseline": 40.0
+    },
+    "points": 40
+   },
+   {
+    "code": "PEER_DEVIATION",
+    "anomaly_type": "peer_deviation",
+    "title": "Amount staked (30 days) far above similar players",
+    "detail": "Amount staked (30 days) of $14,479 (172.6x the peer median of $83.87) sits in the top 2.9% of the peer group (65+ | 20-40k, n=70). Also unusual: largest single deposit, deposits (30 days), average stake, bets per day.",
+    "evidence": {
+     "turnover_30d": 14478.87,
+     "z_score": 8.365,
+     "percentile": 0.9714,
+     "flagged_features": [
+      "turnover_30d",
+      "max_deposit_30d",
+      "deposits_30d",
+      "avg_stake_30d",
+      "bets_per_day_30d"
+     ],
+     "peer_group": "65+ | 20-40k"
+    },
+    "comparison": {
+     "peer_median": 83.865,
+     "own_baseline": null
+    },
+    "points": 40
+   },
+   {
+    "code": "DEPOSIT_SPIKE",
+    "anomaly_type": "behaviour_change",
+    "title": "Deposits sharply up on own history",
+    "detail": "Deposited $8,290 in the last 30 days against a usual $40.00 per 30 days (92.7x).",
+    "evidence": {
+     "deposits_30d": 8290.0,
+     "deposit_change_ratio": 92.6667
+    },
+    "comparison": {
+     "peer_median": 40.0,
+     "own_baseline": 40.0
+    },
+    "points": 30
+   },
+   {
+    "code": "STAKE_ESCALATION",
+    "anomaly_type": "behaviour_change",
+    "title": "Average stake rising",
+    "detail": "Average stake is $177, 18.0x the usual $5.08.",
+    "evidence": {
+     "avg_stake_30d": 176.5716,
+     "stake_change_ratio": 18.0064
+    },
+    "comparison": {
+     "peer_median": 8.0289,
+     "own_baseline": 5.0837
+    },
+    "points": 10
+   },
+   {
+    "code": "MODEL_OUTLIER",
+    "anomaly_type": "multivariate_outlier",
+    "title": "Unusual overall activity profile (Isolation Forest)",
+    "detail": "The Isolation Forest ranks this player more unusual than 98.8% of all players; the most unusual inputs are stake change ratio, deposit change ratio, deposit to income.",
+    "evidence": {
+     "iforest_percentile": 0.9876,
+     "top_features": [
+      "stake_change_ratio",
+      "deposit_change_ratio",
+      "deposit_to_income"
+     ]
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": null
+    },
+    "points": 10
+   }
+  ],
+  "recommended_action": {
+   "action": "Request source-of-funds documentation",
+   "team": "AML",
+   "rationale": "Deposits are well above what the declared income band supports.",
+   "secondary": [
+    {
+     "team": "Safer Gambling",
+     "action": "Safer Gambling check-in: offer deposit limits or a time-out"
+    }
+   ],
+   "primary_type": "income_mismatch"
+  },
+  "summary": "P02990 (65+, Retired, 20-40k, Central Ontario) scores 100/100 (Critical). Deposited $8,290 in the last 30 days, 3.3x the estimated monthly income of $2,500 for a Retired in the 20-40k band. Amount staked (30 days) of $14,479 (172.6x the peer median of $83.87) sits in the top 2.9% of the peer group (65+ | 20-40k, n=70). Also unusual: largest single deposit, deposits (30 days), average stake, bets per day. Recommended: Request source-of-funds documentation (AML).",
+  "iforest_percentile": 0.9876,
+  "raw_points": 130,
+  "rank": 49,
+  "latest_decision": null
+ },
+ {
+  "alert_id": "A-P03247",
+  "player_id": "P03247",
+  "score": 100,
+  "band": "Critical",
+  "team": "Fraud",
+  "anomaly_types": [
+   "location_anomaly",
+   "behaviour_change",
+   "peer_deviation",
+   "income_mismatch",
+   "multivariate_outlier"
+  ],
+  "points_by_type": {
+   "income_mismatch": 20,
+   "location_anomaly": 50,
+   "behaviour_change": 42,
+   "peer_deviation": 40,
+   "multivariate_outlier": 15
+  },
+  "top_reason_code": "IMPOSSIBLE_TRAVEL",
+  "status": "open",
+  "created_at": "2026-10-01",
+  "profile": {
+   "age_band": "18-24",
+   "occupation": "Retail associate",
+   "income_band": "20-40k",
+   "home_region": "Toronto/GTA",
+   "signup_date": "2025-09-06"
+  },
+  "peer_group": "18-24 | 20-40k | Toronto/GTA",
+  "peer_group_size": 59,
+  "key_metrics": {
+   "deposits_30d": 1850.0,
+   "withdrawals_30d": 1803.69,
+   "turnover_30d": 2033.82,
+   "net_loss_30d": -446.71,
+   "bet_count_30d": 16.0,
+   "avg_stake_30d": 127.11,
+   "deposits_baseline_m": 126.67,
+   "monthly_income_estimate": 2500.0
+  },
+  "reasons": [
+   {
+    "code": "IMPOSSIBLE_TRAVEL",
+    "anomaly_type": "location_anomaly",
+    "title": "Transactions from distant places too close together",
+    "detail": "3 pair(s) of consecutive transactions came from locations too far apart to travel between in the time.",
+    "evidence": {
+     "impossible_travel_count_30d": 3.0,
+     "distinct_ip_regions_30d": 3.0
+    },
+    "comparison": {
+     "peer_median": 0.0,
+     "own_baseline": null
+    },
+    "points": 26
+   },
+   {
+    "code": "NEW_DEVICE_NEW_PAYOUT",
+    "anomaly_type": "location_anomaly",
+    "title": "Withdrawals to a new payment method from a new device",
+    "detail": "6 withdrawal(s) went to a payment method first seen this month, alongside 1 new device(s).",
+    "evidence": {
+     "withdrawals_to_new_pm_30d": 6.0,
+     "new_devices_30d": 1.0,
+     "new_payment_methods_30d": 1.0
+    },
+    "comparison": {
+     "peer_median": 0.0,
+     "own_baseline": 0.0
+    },
+    "points": 20
+   },
+   {
+    "code": "UNEXPECTED_LOCATION",
+    "anomaly_type": "location_anomaly",
+    "title": "Activity outside home region",
+    "detail": "61% of transactions in the last 30 days came from outside Toronto/GTA, including 23% from outside Canada.",
+    "evidence": {
+     "share_outside_home_30d": 0.6136,
+     "share_outside_canada_30d": 0.2273,
+     "distinct_ip_regions_30d": 3.0,
+     "home_region": "Toronto/GTA"
+    },
+    "comparison": {
+     "peer_median": 0.0,
+     "own_baseline": null
+    },
+    "points": 18
+   },
+   {
+    "code": "NEW_DEVICE_AWAY",
+    "anomaly_type": "location_anomaly",
+    "title": "New device appearing with out-of-region activity",
+    "detail": "1 device(s) first seen this month, while 61% of activity came from outside Toronto/GTA.",
+    "evidence": {
+     "new_devices_30d": 1.0,
+     "share_outside_home_30d": 0.6136
+    },
+    "comparison": {
+     "peer_median": 0.0,
+     "own_baseline": 0.0
+    },
+    "points": 12
+   },
+   {
+    "code": "PEER_DEVIATION",
+    "anomaly_type": "peer_deviation",
+    "title": "Largest single deposit far above similar players",
+    "detail": "Largest single deposit of $270 (13.5x the peer median of $20.00) sits in the top 3.4% of the peer group (18-24 | 20-40k | Toronto/GTA, n=59). Also unusual: deposits (30 days), amount staked (30 days), average stake.",
+    "evidence": {
+     "max_deposit_30d": 270.0,
+     "z_score": 8.859,
+     "percentile": 0.9661,
+     "flagged_features": [
+      "max_deposit_30d",
+      "deposits_30d",
+      "turnover_30d",
+      "avg_stake_30d"
+     ],
+     "peer_group": "18-24 | 20-40k | Toronto/GTA"
+    },
+    "comparison": {
+     "peer_median": 20.0,
+     "own_baseline": null
+    },
+    "points": 40
+   },
+   {
+    "code": "DEPOSIT_SPIKE",
+    "anomaly_type": "behaviour_change",
+    "title": "Deposits sharply up on own history",
+    "detail": "Deposited $1,850 in the last 30 days against a usual $127 per 30 days (10.8x).",
+    "evidence": {
+     "deposits_30d": 1850.0,
+     "deposit_change_ratio": 10.7547
+    },
+    "comparison": {
+     "peer_median": 40.0,
+     "own_baseline": 126.6667
+    },
+    "points": 30
+   },
+   {
+    "code": "INCOME_MISMATCH",
+    "anomaly_type": "income_mismatch",
+    "title": "Deposits high for declared income",
+    "detail": "Deposited $1,850 in the last 30 days, 0.7x the estimated monthly income of $2,500 for a Retail associate in the 20-40k band.",
+    "evidence": {
+     "deposits_30d": 1850.0,
+     "monthly_income_estimate": 2500.0,
+     "deposit_to_income": 0.74,
+     "income_band": "20-40k",
+     "occupation": "Retail associate"
+    },
+    "comparison": {
+     "peer_median": 40.0,
+     "own_baseline": 126.6667
+    },
+    "points": 20
+   },
+   {
+    "code": "MODEL_OUTLIER",
+    "anomaly_type": "multivariate_outlier",
+    "title": "Unusual overall activity profile (Isolation Forest)",
+    "detail": "The Isolation Forest ranks this player more unusual than 99.8% of all players; the most unusual inputs are withdrawals to new pm 30d, impossible travel count 30d, deposit change ratio.",
+    "evidence": {
+     "iforest_percentile": 0.9976,
+     "top_features": [
+      "withdrawals_to_new_pm_30d",
+      "impossible_travel_count_30d",
+      "deposit_change_ratio"
+     ]
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": null
+    },
+    "points": 15
+   },
+   {
+    "code": "LATE_NIGHT_SHIFT",
+    "anomaly_type": "behaviour_change",
+    "title": "Play moved to late night",
+    "detail": "25% of bets were placed between midnight and 6am, up from 0%.",
+    "evidence": {
+     "night_share_30d": 0.25,
+     "bet_count_30d": 16.0
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": 0.0
+    },
+    "points": 12
+   }
+  ],
+  "recommended_action": {
+   "action": "Verify account owner and hold withdrawals to new payment methods",
+   "team": "Fraud",
+   "rationale": "Activity from unexpected locations or new devices suggests the account may not be used by its owner.",
+   "secondary": [
+    {
+     "team": "Safer Gambling",
+     "action": "Safer Gambling check-in: offer deposit limits or a time-out"
+    },
+    {
+     "team": "AML",
+     "action": "Review stake pattern against peer group"
+    }
+   ],
+   "primary_type": "location_anomaly"
+  },
+  "summary": "P03247 (18-24, Retail associate, 20-40k, Toronto/GTA) scores 100/100 (Critical). 3 pair(s) of consecutive transactions came from locations too far apart to travel between in the time. 6 withdrawal(s) went to a payment method first seen this month, alongside 1 new device(s). Recommended: Verify account owner and hold withdrawals to new payment methods (Fraud).",
+  "iforest_percentile": 0.9976,
+  "raw_points": 193,
+  "rank": 1,
+  "latest_decision": null
+ },
+ {
+  "alert_id": "A-P04793",
+  "player_id": "P04793",
+  "score": 100,
+  "band": "Critical",
+  "team": "Safer Gambling",
+  "anomaly_types": [
+   "behaviour_change",
+   "peer_deviation",
+   "income_mismatch",
+   "cash_cycling",
+   "multivariate_outlier"
+  ],
+  "points_by_type": {
+   "income_mismatch": 20,
+   "cash_cycling": 20,
+   "behaviour_change": 50,
+   "peer_deviation": 36,
+   "multivariate_outlier": 15
+  },
+  "top_reason_code": "DEPOSIT_SPIKE",
+  "status": "open",
+  "created_at": "2026-10-01",
+  "profile": {
+   "age_band": "45-54",
+   "occupation": "Software developer",
+   "income_band": "150k+",
+   "home_region": "Eastern Ontario",
+   "signup_date": "2025-03-22"
+  },
+  "peer_group": "45-54 | 150k+",
+  "peer_group_size": 41,
+  "key_metrics": {
+   "deposits_30d": 8500.0,
+   "withdrawals_30d": 5479.91,
+   "turnover_30d": 8498.81,
+   "net_loss_30d": 704.19,
+   "bet_count_30d": 47.0,
+   "avg_stake_30d": 180.83,
+   "deposits_baseline_m": 203.33,
+   "monthly_income_estimate": 16666.67
+  },
+  "reasons": [
+   {
+    "code": "DEPOSIT_SPIKE",
+    "anomaly_type": "behaviour_change",
+    "title": "Deposits sharply up on own history",
+    "detail": "Deposited $8,500 in the last 30 days against a usual $203 per 30 days (33.8x).",
+    "evidence": {
+     "deposits_30d": 8500.0,
+     "deposit_change_ratio": 33.75
+    },
+    "comparison": {
+     "peer_median": 150.0,
+     "own_baseline": 203.3333
+    },
+    "points": 30
+   },
+   {
+    "code": "LOSS_CHASING",
+    "anomaly_type": "behaviour_change",
+    "title": "Re-depositing straight after losses",
+    "detail": "13 deposits were made within 15 minutes of a losing bet in the last 30 days.",
+    "evidence": {
+     "chase_deposits_30d": 13.0,
+     "net_loss_30d": 704.19
+    },
+    "comparison": {
+     "peer_median": 0.0,
+     "own_baseline": 137.22
+    },
+    "points": 20
+   },
+   {
+    "code": "LATE_NIGHT_SHIFT",
+    "anomaly_type": "behaviour_change",
+    "title": "Play moved to late night",
+    "detail": "38% of bets were placed between midnight and 6am, up from 2%.",
+    "evidence": {
+     "night_share_30d": 0.383,
+     "bet_count_30d": 47.0
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": 0.0233
+    },
+    "points": 12
+   },
+   {
+    "code": "STAKE_ESCALATION",
+    "anomaly_type": "behaviour_change",
+    "title": "Average stake rising",
+    "detail": "Average stake is $181, 3.3x the usual $51.44.",
+    "evidence": {
+     "avg_stake_30d": 180.8257,
+     "stake_change_ratio": 3.2924
+    },
+    "comparison": {
+     "peer_median": 35.2175,
+     "own_baseline": 51.4414
+    },
+    "points": 10
+   },
+   {
+    "code": "PEER_DEVIATION",
+    "anomaly_type": "peer_deviation",
+    "title": "Deposits (30 days) far above similar players",
+    "detail": "Deposits (30 days) of $8,500 (56.7x the peer median of $150) sits in the top 0.1% of the peer group (45-54 | 150k+, n=41). Also unusual: amount staked (30 days), largest single deposit.",
+    "evidence": {
+     "deposits_30d": 8500.0,
+     "z_score": 3.783,
+     "percentile": 1.0,
+     "flagged_features": [
+      "deposits_30d",
+      "turnover_30d",
+      "max_deposit_30d"
+     ],
+     "peer_group": "45-54 | 150k+"
+    },
+    "comparison": {
+     "peer_median": 150.0,
+     "own_baseline": null
+    },
+    "points": 36
+   },
+   {
+    "code": "INCOME_MISMATCH",
+    "anomaly_type": "income_mismatch",
+    "title": "Deposits high for declared income",
+    "detail": "Deposited $8,500 in the last 30 days, 0.5x the estimated monthly income of $16,667 for a Software developer in the 150k+ band.",
+    "evidence": {
+     "deposits_30d": 8500.0,
+     "monthly_income_estimate": 16666.6667,
+     "deposit_to_income": 0.51,
+     "income_band": "150k+",
+     "occupation": "Software developer"
+    },
+    "comparison": {
+     "peer_median": 150.0,
+     "own_baseline": 203.3333
+    },
+    "points": 20
+   },
+   {
+    "code": "CASH_IN_CASH_OUT",
+    "anomaly_type": "cash_cycling",
+    "title": "Money in and out with little betting",
+    "detail": "Withdrew $5,480 (64% of the $8,500 deposited) after staking only $8,499 (100% of deposits).",
+    "evidence": {
+     "deposits_30d": 8500.0,
+     "withdrawals_30d": 5479.91,
+     "turnover_30d": 8498.81,
+     "withdrawal_to_deposit_30d": 0.6447,
+     "turnover_to_deposit_30d": 0.9999
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": null
+    },
+    "points": 20
+   },
+   {
+    "code": "MODEL_OUTLIER",
+    "anomaly_type": "multivariate_outlier",
+    "title": "Unusual overall activity profile (Isolation Forest)",
+    "detail": "The Isolation Forest ranks this player more unusual than 99.1% of all players; the most unusual inputs are chase deposits 30d, deposit change ratio, stake change ratio.",
+    "evidence": {
+     "iforest_percentile": 0.9908,
+     "top_features": [
+      "chase_deposits_30d",
+      "deposit_change_ratio",
+      "stake_change_ratio"
+     ]
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": null
+    },
+    "points": 15
+   }
+  ],
+  "recommended_action": {
+   "action": "Safer Gambling check-in: offer deposit limits or a time-out",
+   "team": "Safer Gambling",
+   "rationale": "Spending and play patterns have escalated sharply against the player's own history.",
+   "secondary": [
+    {
+     "team": "AML",
+     "action": "Review stake pattern against peer group"
+    }
+   ],
+   "primary_type": "behaviour_change"
+  },
+  "summary": "P04793 (45-54, Software developer, 150k+, Eastern Ontario) scores 100/100 (Critical). Deposited $8,500 in the last 30 days against a usual $203 per 30 days (33.8x). 13 deposits were made within 15 minutes of a losing bet in the last 30 days. Recommended: Safer Gambling check-in: offer deposit limits or a time-out (Safer Gambling).",
+  "iforest_percentile": 0.9908,
+  "raw_points": 163,
+  "rank": 15,
+  "latest_decision": null
+ },
+ {
+  "alert_id": "A-P01002",
+  "player_id": "P01002",
+  "score": 100,
+  "band": "Critical",
+  "team": "AML",
+  "anomaly_types": [
+   "linked_players",
+   "income_mismatch",
+   "behaviour_change",
+   "peer_deviation",
+   "multivariate_outlier"
+  ],
+  "points_by_type": {
+   "income_mismatch": 45,
+   "behaviour_change": 40,
+   "linked_players": 50,
+   "peer_deviation": 40,
+   "multivariate_outlier": 15
+  },
+  "top_reason_code": "OPPOSITE_BETTING_LINKED",
+  "status": "open",
+  "created_at": "2026-10-01",
+  "profile": {
+   "age_band": "25-34",
+   "occupation": "Student",
+   "income_band": "<20k",
+   "home_region": "Southwestern Ontario",
+   "signup_date": "2023-10-28"
+  },
+  "peer_group": "25-34 | <20k",
+  "peer_group_size": 107,
+  "key_metrics": {
+   "deposits_30d": 11090.0,
+   "withdrawals_30d": 6054.7,
+   "turnover_30d": 11090.0,
+   "net_loss_30d": 5035.3,
+   "bet_count_30d": 7.0,
+   "avg_stake_30d": 1584.29,
+   "deposits_baseline_m": 1356.67,
+   "monthly_income_estimate": 1250.0
+  },
+  "reasons": [
+   {
+    "code": "OPPOSITE_BETTING_LINKED",
+    "anomaly_type": "linked_players",
+    "title": "Betting against linked accounts",
+    "detail": "Placed 11 bets on the opposite side of the same event as an account sharing its device, payment method or address.",
+    "evidence": {
+     "opposite_bets_with_linked": 11.0,
+     "linked_players": 4.0
+    },
+    "comparison": {
+     "peer_median": 0.0,
+     "own_baseline": null
+    },
+    "points": 40
+   },
+   {
+    "code": "LINKED_PLAYERS",
+    "anomaly_type": "linked_players",
+    "title": "Shares identifiers with several accounts",
+    "detail": "Shares 3 device / payment / address identifier(s) with 4 other players.",
+    "evidence": {
+     "linked_players": 4.0,
+     "shared_identifier_count": 3.0
+    },
+    "comparison": {
+     "peer_median": 0.0,
+     "own_baseline": null
+    },
+    "points": 10
+   },
+   {
+    "code": "INCOME_MISMATCH",
+    "anomaly_type": "income_mismatch",
+    "title": "Deposits exceed declared income",
+    "detail": "Deposited $11,090 in the last 30 days, 8.9x the estimated monthly income of $1,250 for a Student in the <20k band.",
+    "evidence": {
+     "deposits_30d": 11090.0,
+     "monthly_income_estimate": 1250.0,
+     "deposit_to_income": 8.872,
+     "income_band": "<20k",
+     "occupation": "Student"
+    },
+    "comparison": {
+     "peer_median": 20.0,
+     "own_baseline": 1356.6667
+    },
+    "points": 45
+   },
+   {
+    "code": "PEER_DEVIATION",
+    "anomaly_type": "peer_deviation",
+    "title": "Average stake far above similar players",
+    "detail": "Average stake of $1,584 (350.7x the peer median of $4.52) sits in the top 0.1% of the peer group (25-34 | <20k, n=107). Also unusual: amount staked (30 days), net loss (30 days).",
+    "evidence": {
+     "avg_stake_30d": 1584.2857,
+     "z_score": 9.578,
+     "percentile": 1.0,
+     "flagged_features": [
+      "avg_stake_30d",
+      "turnover_30d",
+      "net_loss_30d"
+     ],
+     "peer_group": "25-34 | <20k"
+    },
+    "comparison": {
+     "peer_median": 4.5181,
+     "own_baseline": null
+    },
+    "points": 40
+   },
+   {
+    "code": "DEPOSIT_SPIKE",
+    "anomaly_type": "behaviour_change",
+    "title": "Deposits sharply up on own history",
+    "detail": "Deposited $11,090 in the last 30 days against a usual $1,357 per 30 days (7.9x).",
+    "evidence": {
+     "deposits_30d": 11090.0,
+     "deposit_change_ratio": 7.9194
+    },
+    "comparison": {
+     "peer_median": 20.0,
+     "own_baseline": 1356.6667
+    },
+    "points": 30
+   },
+   {
+    "code": "MODEL_OUTLIER",
+    "anomaly_type": "multivariate_outlier",
+    "title": "Unusual overall activity profile (Isolation Forest)",
+    "detail": "The Isolation Forest ranks this player more unusual than 99.9% of all players; the most unusual inputs are opposite bets with linked, deposit to income, linked players.",
+    "evidence": {
+     "iforest_percentile": 0.9988,
+     "top_features": [
+      "opposite_bets_with_linked",
+      "deposit_to_income",
+      "linked_players"
+     ]
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": null
+    },
+    "points": 15
+   },
+   {
+    "code": "STAKE_ESCALATION",
+    "anomaly_type": "behaviour_change",
+    "title": "Average stake rising",
+    "detail": "Average stake is $1,584, 7.2x the usual $216.",
+    "evidence": {
+     "avg_stake_30d": 1584.2857,
+     "stake_change_ratio": 7.1875
+    },
+    "comparison": {
+     "peer_median": 4.5181,
+     "own_baseline": 216.1189
+    },
+    "points": 10
+   }
+  ],
+  "recommended_action": {
+   "action": "Open a linked-account investigation",
+   "team": "AML",
+   "rationale": "The account shares identifiers with other players and bets against them on the same events.",
+   "secondary": [
+    {
+     "team": "Safer Gambling",
+     "action": "Safer Gambling check-in: offer deposit limits or a time-out"
+    }
+   ],
+   "primary_type": "linked_players"
+  },
+  "summary": "P01002 (25-34, Student, <20k, Southwestern Ontario) scores 100/100 (Critical). Placed 11 bets on the opposite side of the same event as an account sharing its device, payment method or address. Shares 3 device / payment / address identifier(s) with 4 other players. Recommended: Open a linked-account investigation (AML).",
+  "iforest_percentile": 0.9988,
+  "raw_points": 190,
+  "rank": 2,
+  "latest_decision": null
+ },
+ {
+  "alert_id": "A-P02044",
+  "player_id": "P02044",
+  "score": 100,
+  "band": "Critical",
+  "team": "AML",
+  "anomaly_types": [
+   "peer_deviation",
+   "income_mismatch",
+   "cash_cycling",
+   "behaviour_change",
+   "multivariate_outlier"
+  ],
+  "points_by_type": {
+   "income_mismatch": 30,
+   "cash_cycling": 20,
+   "behaviour_change": 20,
+   "peer_deviation": 40,
+   "multivariate_outlier": 5
+  },
+  "top_reason_code": "PEER_DEVIATION",
+  "status": "open",
+  "created_at": "2026-10-01",
+  "profile": {
+   "age_band": "65+",
+   "occupation": "Retired",
+   "income_band": "20-40k",
+   "home_region": "Toronto/GTA",
+   "signup_date": "2022-03-11"
+  },
+  "peer_group": "65+ | 20-40k | Toronto/GTA",
+  "peer_group_size": 54,
+  "key_metrics": {
+   "deposits_30d": 4560.0,
+   "withdrawals_30d": 4857.54,
+   "turnover_30d": 2048.55,
+   "net_loss_30d": -1025.4,
+   "bet_count_30d": 12.0,
+   "avg_stake_30d": 170.71,
+   "deposits_baseline_m": 1236.67,
+   "monthly_income_estimate": 2500.0
+  },
+  "reasons": [
+   {
+    "code": "PEER_DEVIATION",
+    "anomaly_type": "peer_deviation",
+    "title": "Average stake far above similar players",
+    "detail": "Average stake of $171 (26.4x the peer median of $6.47) sits in the top 3.7% of the peer group (65+ | 20-40k | Toronto/GTA, n=54). Also unusual: amount staked (30 days).",
+    "evidence": {
+     "avg_stake_30d": 170.7125,
+     "z_score": 5.121,
+     "percentile": 0.963,
+     "flagged_features": [
+      "avg_stake_30d",
+      "turnover_30d"
+     ],
+     "peer_group": "65+ | 20-40k | Toronto/GTA"
+    },
+    "comparison": {
+     "peer_median": 6.4716,
+     "own_baseline": null
+    },
+    "points": 40
+   },
+   {
+    "code": "INCOME_MISMATCH",
+    "anomaly_type": "income_mismatch",
+    "title": "Deposits exceed declared income",
+    "detail": "Deposited $4,560 in the last 30 days, 1.8x the estimated monthly income of $2,500 for a Retired in the 20-40k band.",
+    "evidence": {
+     "deposits_30d": 4560.0,
+     "monthly_income_estimate": 2500.0,
+     "deposit_to_income": 1.824,
+     "income_band": "20-40k",
+     "occupation": "Retired"
+    },
+    "comparison": {
+     "peer_median": 25.0,
+     "own_baseline": 1236.6667
+    },
+    "points": 30
+   },
+   {
+    "code": "CASH_IN_CASH_OUT",
+    "anomaly_type": "cash_cycling",
+    "title": "Money in and out with little betting",
+    "detail": "Withdrew $4,858 (107% of the $4,560 deposited) after staking only $2,049 (45% of deposits).",
+    "evidence": {
+     "deposits_30d": 4560.0,
+     "withdrawals_30d": 4857.54,
+     "turnover_30d": 2048.55,
+     "withdrawal_to_deposit_30d": 1.0652,
+     "turnover_to_deposit_30d": 0.4492
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": null
+    },
+    "points": 20
+   },
+   {
+    "code": "DEPOSIT_SPIKE",
+    "anomaly_type": "behaviour_change",
+    "title": "Deposits sharply up on own history",
+    "detail": "Deposited $4,560 in the last 30 days against a usual $1,237 per 30 days (3.6x).",
+    "evidence": {
+     "deposits_30d": 4560.0,
+     "deposit_change_ratio": 3.5829
+    },
+    "comparison": {
+     "peer_median": 25.0,
+     "own_baseline": 1236.6667
+    },
+    "points": 20
+   },
+   {
+    "code": "MODEL_OUTLIER",
+    "anomaly_type": "multivariate_outlier",
+    "title": "Unusual overall activity profile (Isolation Forest)",
+    "detail": "The Isolation Forest ranks this player more unusual than 96.7% of all players; the most unusual inputs are deposit to income, deposits 30d, deposit change ratio.",
+    "evidence": {
+     "iforest_percentile": 0.9668,
+     "top_features": [
+      "deposit_to_income",
+      "deposits_30d",
+      "deposit_change_ratio"
+     ]
+    },
+    "comparison": {
+     "peer_median": null,
+     "own_baseline": null
+    },
+    "points": 5
+   }
+  ],
+  "recommended_action": {
+   "action": "Review stake pattern against peer group",
+   "team": "AML",
+   "rationale": "Betting is far outside what comparable players do.",
+   "secondary": [
+    {
+     "team": "Safer Gambling",
+     "action": "Safer Gambling check-in: offer deposit limits or a time-out"
+    }
+   ],
+   "primary_type": "peer_deviation"
+  },
+  "summary": "P02044 (65+, Retired, 20-40k, Toronto/GTA) scores 100/100 (Critical). Average stake of $171 (26.4x the peer median of $6.47) sits in the top 3.7% of the peer group (65+ | 20-40k | Toronto/GTA, n=54). Also unusual: amount staked (30 days). Deposited $4,560 in the last 30 days, 1.8x the estimated monthly income of $2,500 for a Retired in the 20-40k band. Recommended: Review stake pattern against peer group (AML).",
+  "iforest_percentile": 0.9668,
+  "raw_points": 115,
+  "rank": 65,
+  "latest_decision": null
+ }
+]
