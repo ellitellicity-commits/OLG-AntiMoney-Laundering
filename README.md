@@ -126,6 +126,7 @@ Everything in `data/` (`.csv`, `.parquet`, `.json`) is generated and git-ignored
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Build order with inputs, outputs, tools, owners and "done when" for each step |
 | [DESIGN.md](DESIGN.md) | Design direction: colours, type, spacing, risk badges, components |
 | [docs/DESIGN_SENTINEL.md](docs/DESIGN_SENTINEL.md) | Alternative "Sentinel" design from the static mock (`frontend/mock_frontend.html`); not yet adopted |
+| [docs/JUBE.md](docs/JUBE.md) | Jube case-management integration: mock demo and real-Jube setup |
 | [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Field proposal behind the static mock, with a mapping to the implemented API |
 | [docs/PROMPTS.md](docs/PROMPTS.md) | Log of AI prompts used, per build step |
 | [docs/VALIDATION.md](docs/VALIDATION.md) | Measured recall, precision@k and false positives (generated) |
