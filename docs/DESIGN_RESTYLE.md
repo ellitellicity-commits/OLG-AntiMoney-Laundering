@@ -199,3 +199,66 @@ Known limits (not fixed; for the team):
 - **Network graph circles and Team-overview band bars** in the four-band palette (`BAND_FILL` and SVG hex values in `app.js`).
 - **Overview tab reorder** (strongest reasons before key facts). This was skipped on purpose because CSS `order` would split visual order from keyboard and screen-reader order.
 - **The rest:** see the "needs JS change" list in [PROMPTS.md](PROMPTS.md) under "Frontend restyle", and FRONTEND_OUTLINE.md §6 ranks 11–19.
+
+## 9. Chat panel (branch `frontend-chat`)
+
+> Built 2026-10-15 on `frontend-chat`, stacked on `frontend-polish`. Plan: [CHAT_PANEL_PLAN.md](CHAT_PANEL_PLAN.md). Frontend design and decisions: [CHAT_FRONTEND_OUTLINE.md](CHAT_FRONTEND_OUTLINE.md). Contract: [CHAT_CONTRACT.md](CHAT_CONTRACT.md). Start here: [CHAT_HANDOFF.md](CHAT_HANDOFF.md). This pass changes `app.js` as well as the markup and CSS.
+
+**Direction.** A marginal notebook beside the dossier, inside the Case File world: paper ground, serif questions, ruled entries, mono provenance lines, a mono "Now viewing" rule, and the same outlined mono `AI` tag as the case summary. No bubbles, avatars, gradients or sparkle. The accent stays the single interaction colour; unverified numbers and unknown IDs use the neutral warning style.
+
+### Layout
+
+| Width | Behaviour |
+|---|---|
+| > 1100px | Two columns: work area `minmax(0, 1fr)` + assistant `max(360px, 35%)`. Collapsible to a 44px rail with a vertical "Assistant" label (`.shell:has(> .chat[data-collapsed="true"])`). The collapsed state is remembered per viewer (localStorage). |
+| ≤ 1100px | The assistant is a fixed navy bar at the foot of the screen showing the context; expanded, an overlay from the right (440px) over a navy scrim, with the work area `inert`. The pinned action bar on tall tablets sits above the bar (`bottom: var(--chat-bar-h)`). |
+| ≤ 560px | The overlay is full screen; the keyboard hint is hidden. |
+
+The work area shows one view at a time. **Mode 1:** the view switch "Alert queue | Team overview" (moved from the masthead, now ink on paper with an accent underline) above the docket or the overview. **Mode 2:** a paper-2 strip "Back to queue · ALR · P · n of N · Previous / Next · Esc back · D decide" above the case file. The old queue + case side-by-side layout (`.layout`) is gone, and so is the tablet 60vh queue box.
+
+### Components
+
+| Component | Treatment |
+|---|---|
+| Panel header | Serif "Assistant" + mono `AI` tag; New chat (small outlined); collapse chevron (authored SVG, no glyph). |
+| Question | Serif 15/22 600; a hidden "You asked:" prefix for screen readers. |
+| Answer | Plex Sans 14/21, 62ch; real lists with mono markers; IDs as mono accent links, unknown IDs as plain mono. |
+| Assumption | "ASSUMPTION" label + ink-2 sentence above the answer. |
+| Actions | Small outlined buttons, labels written by the frontend. |
+| Warnings | Neutral warning lines (unverified numbers, unknown IDs) always visible under the answer. |
+| Footer row | A grid: a native **Details** disclosure on the left (collapsed by default; 24px target; screen readers hear "Details: source, number check and cases used") holding the mono provider line ("Groq gpt-oss-20b", "Ollama llama3.2 · local · fallback", "Built-in stub · not an AI model") + "Numbers checked" and "Cases used" (only when it adds IDs the answer does not already link); **Pin to case** on the right, which stays on the top row when Details opens. |
+| New-answer badge | While collapsed: an accent count pill on the desktop rail, a navy-ink pill on the narrow bottom bar (7.10:1 and 14.06:1); the count is in the bar's accessible name and announced through `#chat-live` (outside the collapsible body); cleared on open. |
+| Divider | Mono uppercase 11px between two rule-strong hairlines. |
+| Notice | Card with a rule-strong border, ink-2 text; never a risk colour. |
+| Composer | Paper-2 band: "CONTEXT" label + chip text, labelled textarea, keyboard hint (Enter send · Shift Enter new line · Esc collapse · Ctrl K open; each pair kept on one line), Send as an **outlined** button so the only solid accent button in Mode 2 is Accept recommendation. |
+| AI notes in history | "AI note" mono tag, question in 600, answer pre-wrapped, provider line, Remove. |
+| Icons | One authored 16px chevron path, 1.7 stroke, `currentColor`. |
+
+**Motion:** answers re-ink (200ms), overlay slides 24px (200ms), both `cubic-bezier(.16, 1, .3, 1)`; off under `prefers-reduced-motion`.
+
+**Contrast (Assessment B):** every chat text pair passes AA: ink 12.4–14.8, ink-2 6.2–7.4, accent links 5.6–6.7, navy-ink-2 on navy 9.63.
+
+### Impeccable passes
+
+| Pass | Result |
+|---|---|
+| `/impeccable shape` | Brief and wireframes in CHAT_FRONTEND_OUTLINE.md §3–4. The question round was skipped as instructed; defaults recorded under "Decisions taken". |
+| `/impeccable craft` (alias for new-work) | Shell, router, chat panel. |
+| `/impeccable critique` | Dual-agent (design review + detector). **26/40.** Detector: 16 CLI findings, all false positives or intended (13 `<kbd>` bevels, 1 contrast misread of a `color-mix` ground, 1 table hairline, 1 cream palette); the in-browser detector found only the intended cream palette. Narrow ignores recorded in `.impeccable/config.json` with reasons. |
+| Low-risk fixes applied | Masthead status says "chat: built-in stub" in stub mode; Send made secondary; hidden "You asked:" prefix; warnings included in the aria-live announcement; "Cases used" de-duplicated; warning list spacing ("48,000, 6"). |
+| `/impeccable polish` | Dead `.ask-warn` rules removed, Send states aligned with `.btn`. |
+| Additions (round 2) | Details disclosure; new-answer badge; **Esc inside the assistant collapses it** at every width (Ctrl+K reopens; no clash with arrows, Enter, `/`, `D`, or Esc in search / the case file / Mode 2 outside the chat). |
+| `/impeccable critique` round 2 | Dual-agent. **29/40** (from 26). CLI detector clean with the recorded ignores (without them: the same four suppressed rules only, 18 hits, 15 of them `<kbd>` bevels); browser detector: only the accepted cream palette plus two line-length notes on existing case-file text. |
+| Round-2 low-risk fixes + `/impeccable polish` | 24px targets for Details and Pin; Pin no longer jumps when Details opens (footer grid); log scroll padding; Esc ignores IME composition. **Page-height bug fixed:** screen-reader-only spans inside scroll boxes (the chat log, and the queue's existing "+N more" text) had no positioned ancestor and stretched the document to 13,645px on the desktop queue (hidden by `overflow: hidden`, but `scrollIntoView` could shift the masthead). `.chat-log`, `.table-wrap`, `.detail-scroll` and `.overview` are now `position: relative`; a page-height check was added to both suites. |
+
+### Not done (for the team)
+
+- **New chat has no confirmation and no undo — deliberate.** Plan §4: New chat clears straight away; Pin to case already saves what matters. Not a gap.
+- **"Numbers checked" is behind Details.** Round-2 review suggests a quiet visible "Numbers checked" next to the warnings, so a clean answer differs from an unchecked one. Moving it into Details was an explicit instruction; **team decision**.
+- **The badge does not say which alert the unread answer is about** (e.g. "1 new answer, about ALR-00099"). Needs JS.
+- **Error notices count as "new answers"** in the badge; "message" would be more exact. Needs a small JS wording change.
+- **No keyboard jump** from the input to the latest answer's Details or Pin (Tab order works, but it walks the whole log).
+- **Empty state has no example questions** (left out because the plan bars the assistant from suggesting questions; static examples would be a team call).
+- **`aria-pressed` vs `aria-current`** on the view switch (kept as before).
+- **The view is not restored after a refresh** (the conversation is).
+- **Existing case-file text measure** (browser detector): `.reason-detail` runs to about 113 characters at 1440 and the case summary to about 97 (its `72ch` cap counts "0" widths). Outside the chat; left for the restyle owner.
