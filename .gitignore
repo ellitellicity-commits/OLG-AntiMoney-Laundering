@@ -28,8 +28,11 @@ data/*.csv
 data/**/*.csv
 *.parquet
 
-# Confidential challenge brief: never commit
+# Confidential challenge brief: never commit. Its real filename is
+# "ThunderHacksII_OLG_Problem Statement.pdf", which *brief*.pdf did not match, so ignore
+# every PDF. To commit a PDF deliberately (e.g. slides), add an exception: !docs/slides.pdf
 *brief*.pdf
+*.pdf
 data/**/*.json
 data/*.json
 data/*.tmp
