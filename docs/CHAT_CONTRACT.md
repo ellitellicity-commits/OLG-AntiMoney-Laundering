@@ -102,12 +102,12 @@ Everything in this section that the plan's §11 does not spell out is a frontend
 | 1 | **Context sort format:** `"-key"` = descending, `"key"` = ascending, keys `score`, `last_activity`, `ai`, `player_id`, `top_reason`, `team`, `status`. **Filters shape:** always all eight keys (`band`, `team`, `type`, `status`, `confidence`, `min_score`, `search`, `include_watchlist`), `null` when unset (§2). | **Confirmed** (backend, `/chat` on branch `chat-backend`) |
 | 2 | **Action type names:** `sort` (field `sort`) and `show_watchlist` (no fields) for the plan's "Sort by <key>" and "Show watchlist". The plan names only `open_alert` and `apply_filter`. | **Confirmed** (backend) |
 | 3 | **Offline answer shape:** the normal response with `provider: null`, `model: null` and the offline note in `answer` (example 4.7). | **Confirmed** (backend): also used when every provider fails |
-| 4 | **Notes response shapes:** POST returns the stored note; DELETE returns `{note_id, alert_id, removed, removed_by, recorded_at}`; `GET /alerts/{id}` returns `notes: [...]` with the same note objects (example 4.8). The plan defines only the requests. | PROPOSED; notes endpoints not built yet (next backend step) |
+| 4 | **Notes response shapes:** POST returns the stored note; DELETE returns `{note_id, alert_id, removed, removed_by, recorded_at}`; `GET /alerts/{id}` returns `notes: [...]` with the same note objects (example 4.8). The plan defines only the requests. | **Confirmed** (backend, as proposed; see §5 for the details) |
 
 Required on the backend side (from the plan, not proposals):
 
-- **CORS must allow `DELETE`** for removing a pinned note. The API currently allows only `GET` and `POST` (`allow_methods=["GET", "POST"]` in `backend/app/main.py`).
-- **Notes must appear in `GET /audit`, `/audit.csv` and the case report** (`/alerts/{id}/report`, "AI notes (AI-generated, reviewed by <name>)"), as plan §10 says. Removals are recorded in the audit trail too.
+- **CORS must allow `DELETE`** for removing a pinned note. **Done:** `allow_methods=["GET", "POST", "DELETE"]`.
+- **Notes must appear in `GET /audit`, `/audit.csv` and the case report** (`/alerts/{id}/report`, "AI notes (AI-generated, reviewed by <name>)"), as plan §10 says. Removals are recorded in the audit trail too. **Done** (§5).
 
 ## 4. Example stub responses
 
@@ -231,7 +231,7 @@ An HTTP error (or no `/chat` at all) is shown by the frontend as a notice instea
  "model": "openai/gpt-oss-20b", "verified": true, "investigator": "J. Doe"}
 ```
 
-Response `201` (proposed):
+Response `201`:
 
 ```json
 {
@@ -244,14 +244,14 @@ Response `201` (proposed):
 
 Errors: `422` when `investigator` is empty; `404` for an unknown alert.
 
-`DELETE /alerts/ALR-00405/notes/N-0001?investigator=J.%20Doe` → `200` (proposed):
+`DELETE /alerts/ALR-00405/notes/N-0001?investigator=J.%20Doe` → `200`:
 
 ```json
 {"note_id": "N-0001", "alert_id": "ALR-00405", "removed": true,
  "removed_by": "J. Doe", "recorded_at": "2026-10-15 14:05:40 UTC"}
 ```
 
-`GET /alerts/ALR-00405` gains (proposed): `"notes": [ <note objects as above, not removed> ]`.
+`GET /alerts/ALR-00405` gains: `"notes": [ <note objects as above, not removed> ]`.
 
 ### 4.9 Hostile text (stub test only)
 
@@ -280,3 +280,11 @@ No shapes changed. How the backend fills the contract:
 - **Not built:** plan section 7 layer 2 (model-driven lookup tools). Layer 1 retrieval answers the plan's test questions.
 - **Known limit of the number check:** it confirms every number appears somewhere in the evidence, not that it is attached to the right fact.
 
+### Notes (`POST`/`DELETE /alerts/{id}/notes`)
+
+- **Storage:** `data/notes.json` (alert ID → notes, oldest first), next to `data/decisions.json` but in its own file, so a note can never change an alert's status or team. Note IDs are global and sequential: `N-0001`, `N-0002`, ...
+- **Removing** hides the note from `GET /alerts/{id}` and the report but keeps it in the file with `removed_by` and `removed_at`, so the audit trail stays complete.
+- **Errors:** `422` when `investigator` is empty (POST body or DELETE query) or `answer` is empty; `404` for an unknown alert, or a note that is not on that alert or is already removed.
+- **Audit trail:** each pin and each removal is a row in `GET /audit` and `/audit.csv`, with `decision` set to `"AI note pinned"` or `"AI note removed"`, `status` and `team` empty, `note` = `"N-0001: <question>"` (the first 120 characters of the answer when there is no question), plus a `note_id` field. The dashboard's audit table shows these labels as they are.
+- **Case report:** an "AI notes" section after the decision history lists the notes that are not removed, each marked "AI-generated, reviewed by <investigator>" with the time pinned, provider and model, and "numbers not fully checked" when `verified` was false. All note text is HTML-escaped.
+- **Not sent to the AI:** pinned notes are not added to the evidence for `/chat`, summaries or Ask AI, so the model never reads its own earlier answers as facts.

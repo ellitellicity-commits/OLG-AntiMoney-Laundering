@@ -108,6 +108,12 @@ def render(alert: dict, player: dict, peers: dict, network: dict, flagged: list[
     peer_html = table(["Metric", "Last 30 days", "Own baseline", "Peer median", "Peer z"], peer_rows, "", (1, 2, 3, 4))
     dec_html = table(["Recorded", "Investigator", "Decision", "Status", "Team", "Note"], dec_rows,
                      "No decisions recorded yet.")
+    notes = "".join(
+        "<div class='summary' style='white-space:pre-line;margin-bottom:8px'>" + (f"<b>{e(n['question'])}</b><br>" if n["question"] else "") + e(n["answer"])
+        + f"<div class='muted' style='margin-top:6px;font-size:11px'>AI-generated, reviewed by "
+          f"{e(n['investigator'])} · pinned {e(n['recorded_at'])} · {e(n['provider'] or 'no provider')} "
+          f"{e(n['model'] or '')}{'' if n['verified'] else ' · numbers not fully checked'}</div></div>"
+        for n in alert.get("notes", []))
     s = player["summary"]
     key = [("30-day deposits", money(s["deposits_30d"])), ("Baseline deposits / 30 days", money(s["deposits_base_30d"])),
            ("30-day withdrawals", money(s["withdrawals_30d"])), ("Amount bet (30 days)", money(s["turnover_30d"])),
@@ -153,6 +159,7 @@ rest at half.</p>
 <h2>Linked accounts</h2>{links_html}
 <h2>Flagged transactions</h2>{flags_html}
 <h2>Decision history</h2>{dec_html}
+{f"<h2>AI notes</h2><p class='muted'>Chat answers pinned to this case. They are AI-generated and are not decisions.</p>{notes}" if notes else ""}
 <footer>Generated {e(generated_at)} by the Player Risk Review prototype (ThunderHacks 2026). All players and
 transactions are synthetic. This report lists risk indicators for investigator review; it is not a regulatory
 filing and does not by itself establish wrongdoing.

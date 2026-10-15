@@ -77,6 +77,19 @@ class Decision(BaseModel):
     recorded_at: str
 
 
+class Note(BaseModel):
+    """An AI chat answer an investigator pinned to a case (docs/CHAT_CONTRACT.md 4.8). Never a decision."""
+    note_id: str
+    alert_id: str
+    question: str
+    answer: str
+    provider: str | None
+    model: str | None
+    verified: bool
+    investigator: str
+    recorded_at: str
+
+
 class MLDriver(BaseModel):
     feature: str
     label: str
@@ -117,6 +130,7 @@ class AlertDetail(BaseModel):
     window: dict[str, Any]
     synthetic: bool
     decisions: list[Decision]
+    notes: list[Note] = Field(default_factory=list, description="Pinned AI chat answers (not removed), oldest first")
     ml: MLInfo | None = None
     kind: Literal["alert", "watchlist"] = "alert"
     confidence: Confidence | None = None
@@ -338,3 +352,20 @@ class ChatOut(BaseModel):
         '{"type":"open_alert","alert_id","label"} | {"type":"apply_filter","filters","label"} | '
         '{"type":"sort","sort","label"} | {"type":"show_watchlist","label"}'))
     assumption: str | None = None
+
+
+class NoteIn(BaseModel):
+    question: str = Field("", max_length=1000)
+    answer: str = Field(..., min_length=1, max_length=8000)
+    provider: str | None = Field(None, max_length=50)
+    model: str | None = Field(None, max_length=100)
+    verified: bool = False
+    investigator: str = Field("", max_length=100, description="Required: recorded in the audit trail")
+
+
+class NoteRemoved(BaseModel):
+    note_id: str
+    alert_id: str
+    removed: bool
+    removed_by: str
+    recorded_at: str
