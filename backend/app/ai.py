@@ -123,22 +123,72 @@ class LLM:
     def status(self) -> dict:
         cfg = self.config()
         if cfg:
+            fb = self.fallback_config()
             return {"available": True, "provider": cfg["provider"], "model": cfg["model"],
-                    "local": cfg["provider"] == "ollama"}
+                    "local": cfg["provider"] == "ollama",
+                    "fallback": {"provider": fb["provider"], "model": fb["model"]} if fb else None}
         return {"available": False, "provider": None, "model": None, "local": False,
                 "reason": self._reason,
                 "how_to_enable": "Free options: install Ollama and run `ollama pull llama3.2`, or put "
                                  "GROQ_API_KEY=... or GEMINI_API_KEY=... in a .env file in the repo root, "
                                  "then restart the API."}
 
-    def chat(self, messages: list[dict], max_tokens: int = 700, temperature: float = 0.2) -> str:
-        cfg = self.config()
+    def fallback_config(self) -> dict | None:
+        """Local Ollama as a per-request fallback when the primary provider is a hosted one."""
+        primary = self.config()
+        if not primary or primary["provider"] == "ollama" or os.environ.get("LLM_PROVIDER", "auto").strip().lower() == "none":
+            return None
+        with self._lock:
+            if time.time() - getattr(self, "_fb_at", 0.0) > 60:
+                host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+                models = self._ollama_models(host) or []
+                model = next((m for pref in OLLAMA_PREFERRED for m in models if m.split(":")[0] == pref),
+                             models[0] if models else None)
+                p = PROVIDERS["ollama"]
+                self._fb = ({"provider": "ollama", "url": p["url"].format(host=host), "model": model, "key": None,
+                             "timeout": p["timeout"]} if model else None)
+                self._fb_at = time.time()
+            return self._fb
+
+    def chat_with_fallback(self, messages: list[dict], max_tokens: int = 700,
+                           temperature: float = 0.2) -> tuple[str, dict, bool]:
+        """(text, provider config that answered, fallback_used). Tries the primary provider, then local Ollama
+        straight away if the primary errors, times out or is rate-limited. Raises RuntimeError if none answer.
+        A short per-minute rate limit (HTTP 429 "try again in 4s") is waited out once, up to 10 s, first:
+        local Ollama on a laptop CPU takes 20-50 s, so a few seconds of waiting for Groq is the faster path."""
+        primary = self.config()
+        if not primary:
+            raise RuntimeError("No LLM provider available")
+        try:
+            try:
+                return self.chat(messages, max_tokens, temperature, cfg=primary), primary, False
+            except RuntimeError as e:
+                wait = re.search(r"HTTP 429.*?try again in ([\d.]+)(ms|s)\b", str(e))
+                secs = float(wait.group(1)) / (1000 if wait.group(2) == "ms" else 1) if wait else None
+                if secs is None or secs > 10:
+                    raise
+                time.sleep(secs + 0.2)
+                return self.chat(messages, max_tokens, temperature, cfg=primary), primary, False
+        except RuntimeError as first:
+            fb = self.fallback_config()
+            if not fb:
+                raise
+            try:
+                return self.chat(messages, max_tokens, temperature, cfg=fb), fb, True
+            except RuntimeError as second:
+                raise RuntimeError(f"{first}; fallback: {second}") from second
+
+    def chat(self, messages: list[dict], max_tokens: int = 700, temperature: float = 0.2,
+             cfg: dict | None = None) -> str:
+        cfg = cfg or self.config()
         if not cfg:
             raise RuntimeError("No LLM provider available")
         body = {"model": cfg["model"], "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
         if cfg["provider"] == "groq" and cfg["model"].startswith("openai/gpt-oss"):
             body["reasoning_effort"] = "low"
-        headers = {"Content-Type": "application/json"}
+        # Groq's API sits behind Cloudflare, which rejects Python's default "Python-urllib" User-Agent
+        # with HTTP 403 (error code 1010), so always identify the client.
+        headers = {"Content-Type": "application/json", "User-Agent": "olg-risk-review/0.1"}
         if cfg["key"]:
             headers["Authorization"] = f"Bearer {cfg['key']}"
         req = urllib.request.Request(cfg["url"], data=json.dumps(body).encode(), headers=headers, method="POST")
