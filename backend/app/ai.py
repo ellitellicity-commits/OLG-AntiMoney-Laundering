@@ -138,7 +138,9 @@ class LLM:
         body = {"model": cfg["model"], "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
         if cfg["provider"] == "groq" and cfg["model"].startswith("openai/gpt-oss"):
             body["reasoning_effort"] = "low"
-        headers = {"Content-Type": "application/json"}
+        # Groq's API sits behind Cloudflare, which rejects Python's default "Python-urllib" User-Agent
+        # with HTTP 403 (error code 1010), so always identify the client.
+        headers = {"Content-Type": "application/json", "User-Agent": "olg-risk-review/0.1"}
         if cfg["key"]:
             headers["Authorization"] = f"Bearer {cfg['key']}"
         req = urllib.request.Request(cfg["url"], data=json.dumps(body).encode(), headers=headers, method="POST")
