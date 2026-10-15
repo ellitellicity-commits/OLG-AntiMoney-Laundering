@@ -30,3 +30,10 @@ data/**/*.csv
 
 # Confidential challenge brief: never commit
 *brief*.pdf
+data/**/*.json
+data/*.json
+data/*.tmp
+data/models/
+
+# Local test artefacts
+*.log

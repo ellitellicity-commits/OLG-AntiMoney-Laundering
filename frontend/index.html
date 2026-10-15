@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Player Risk Review</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#detail">Skip to alert detail</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <h1>Player Risk Review</h1>
+      <span class="tag tag-synthetic" title="All players, transactions and alerts are generated. No real OLG data.">SYNTHETIC DATA</span>
+      <span class="brand-sub" id="window-label"></span>
+    </div>
+    <form class="filters" id="filters" role="search" aria-label="Filter alerts" onsubmit="return false">
+      <label>Band
+        <select id="f-band"><option value="">All</option></select>
+      </label>
+      <label>Team
+        <select id="f-team"><option value="">All</option></select>
+      </label>
+      <label>Anomaly type
+        <select id="f-type"><option value="">All</option></select>
+      </label>
+      <label>Status
+        <select id="f-status"><option value="">All</option></select>
+      </label>
+      <label class="search">Search
+        <input id="f-search" type="search" placeholder="Player or alert ID  ( / )" autocomplete="off" spellcheck="false">
+      </label>
+    </form>
+  </header>
+
+  <div id="banner" class="banner" role="status" hidden></div>
+
+  <main class="layout">
+    <section class="queue panel" aria-labelledby="queue-title">
+      <div class="panel-head">
+        <h2 id="queue-title">Alert queue</h2>
+        <span class="muted" id="queue-count" aria-live="polite"></span>
+      </div>
+      <form class="ai-search" id="ai-search" role="search" aria-label="Ask the queue in plain English" hidden>
+        <label for="ai-q" class="visually-hidden">Ask the queue in plain English</label>
+        <input id="ai-q" type="search" maxlength="300" autocomplete="off"
+               placeholder="Ask the queue, e.g. &quot;critical AML alerts with linked players&quot;">
+        <button type="submit" class="btn">Find</button>
+        <span class="ai-search-result" id="ai-search-result" role="status" aria-live="polite"></span>
+      </form>
+      <div class="table-wrap" id="queue-wrap">
+        <table class="queue-table" id="queue-table" aria-describedby="queue-help">
+          <thead>
+            <tr>
+              <th scope="col" data-sort="score" aria-sort="descending"><button type="button">Risk</button></th>
+              <th scope="col" data-sort="player_id"><button type="button">Player</button></th>
+              <th scope="col" data-sort="top_reason"><button type="button">Top reason · anomaly types</button></th>
+              <th scope="col" data-sort="team"><button type="button">Team</button></th>
+              <th scope="col" data-sort="last_activity"><button type="button">Last activity</button></th>
+              <th scope="col" data-sort="status"><button type="button">Status</button></th>
+            </tr>
+          </thead>
+          <tbody id="queue-body"></tbody>
+        </table>
+      </div>
+      <p class="help" id="queue-help"><kbd>↑</kbd> <kbd>↓</kbd> move &nbsp;·&nbsp; <kbd>Enter</kbd> open &nbsp;·&nbsp; <kbd>D</kbd> decide &nbsp;·&nbsp; <kbd>Esc</kbd> back to queue &nbsp;·&nbsp; <kbd>/</kbd> search</p>
+    </section>
+
+    <section class="detail panel" id="detail" tabindex="-1" aria-label="Alert detail">
+      <div class="empty-state">
+        <p><strong>No alert open.</strong></p>
+        <p class="muted">Select an alert in the queue and press Enter.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

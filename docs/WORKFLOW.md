@@ -34,6 +34,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
+**Status:** Done. 5,000 players, 180 days ending 2026-09-30, 190 injected players (30–40 per scenario incl. `linked_ring`). Also writes `benign_labels.csv` (busy month, travel, high roller, household, steady high value): normal players with innocent-but-unusual behaviour, used to explain false positives. Same seed gives byte-identical files (checked).
+
 **Done when:** running the script twice with the same seed produces identical files; every scenario has at least 20 labelled players; normal players look plausible (spend roughly in line with income band); and nothing in the data is real.
 
 ---
@@ -61,6 +63,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 **Script:** `backend/pipeline/build_features.py`
 
 **Owner:** TBD
+
+**Status:** Done. 51 columns per player, documented in the module docstring. Peer z-scores are robust (median / IQR) on a log scale; deposits, stake and bet frequency compare against peers *active* in the window, because a third of players don't deposit in a given month.
 
 **Done when:** every player has one row with no unexpected nulls, the feature list is written in a docstring with a one-line definition each, and injected players visibly stand out on their scenario's feature (quick check in a notebook).
 
@@ -97,6 +101,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
+**Status:** Done. Score = sum of reason points, capped at 100, so the reason list always explains the score. Adds `CASH_IN_CASH_OUT` (money movement), `ISOLATION_FOREST` (overall pattern), `STRUCTURING` and `LARGE_TRANSACTION_24H` (compliance) and `ML_MODEL` (supervised model from `train_model.py`, with SHAP drivers) reasons. Alerts are players scoring 40+.
+
 **Done when:** every alert has at least one reason with evidence values, scores fall in 0–100, bands follow the thresholds in `DESIGN.md`, and no alert has an empty explanation.
 
 ---
@@ -120,6 +126,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 **Script:** `backend/pipeline/validate.py`
 
 **Owner:** TBD
+
+**Status:** Done. All checks pass; see `docs/VALIDATION.md`. Band cut-offs kept as drafted.
 
 **Done when:** the report runs in one command, every anomaly type has a recall number, the combined score beats rules-only on precision@50, and weights/thresholds chosen here are copied back into `detect.py` and `DESIGN.md`.
 
@@ -150,6 +158,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
+**Status:** Done. Also `GET /meta` (filter options), `GET /players/{id}/timeline` (weekly activity), `GET /stats`, `GET /model` (model card), `GET /alerts/{id}/report` (printable case report), `?min_score=` on `/alerts`, per-transaction `flags`, and the AI endpoints `GET /ai/status`, `GET /alerts/{id}/summary`, `POST /alerts/{id}/ask`, `POST /ai/search`. The dashboard is served at `/app/`. Decisions stored in `data/decisions.json`; Jube not integrated.
+
 **Done when:** `uvicorn backend.app.main:app` starts, every endpoint returns valid JSON when tested with `curl`, and the response shapes are documented in `/docs`.
 
 ---
@@ -166,6 +176,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
+**Status:** Done. Chart: hand-built SVG. Keyboard-only flow tested in Chrome (open top alert → reasons, peer chart, action → record decision). Falls back to `frontend/mock/alerts.json` when the API is down.
+
 **Done when:** an investigator can, using only the keyboard, open the highest-risk alert, see score + reasons + peer chart + recommended action on one screen, and record a decision. Risk is never shown by colour alone, and "SYNTHETIC DATA" is visible.
 
 ---
@@ -179,10 +191,12 @@ Only start after steps 1–6 work end to end. Suggested order:
 | Network analysis | Graph of players sharing devices / payment methods / addresses. Flag clusters and add a `LINKED_PLAYERS` reason | `networkx` | Injected `linked_ring` players appear as a cluster and the reason shows on their alerts |
 | Automated recommendations | Expand the step 3 mapping to cover combinations of reasons | Python | Every alert has a recommendation with a one-line rationale |
 | Jube integration | Push alerts / sync decisions | Jube API (TBD) | A decision made in the dashboard appears in Jube |
-| ML model + SHAP | Train on injected labels and map SHAP top features onto reason items | `lightgbm` / `xgboost`, `shap` | Improves precision@50 in `VALIDATION.md` without breaking explanations |
-| LLM summary | 2–3 sentence summary written **only** from the alert JSON | LLM provider **TBD** | The summary never contains a number or fact missing from the evidence (spot-check 10 alerts) |
+| ML model + SHAP | Train on injected labels and map SHAP top features onto reason items | scikit-learn `HistGradientBoostingClassifier`, `shap` | Improves precision@50 in `VALIDATION.md` without breaking explanations |
+| LLM summary | 2–3 sentence summary written **only** from the alert JSON | Free: Ollama, Groq or Gemini | The summary never contains a number or fact missing from the evidence (spot-check 10 alerts) |
 
 **Owner:** TBD
+
+**Status:** Network analysis done (`LINKED_PLAYERS` reason, `/players/{id}/network`, linked-players panel). Automated recommendations done for reason combinations, each with a one-line rationale. ML + SHAP done (`backend/pipeline/train_model.py`, step 2b): out-of-fold scoring, so no player is scored by a model that saw them; precision@50 was already 100%, so the measured gain is recall (89% → 95%; peer deviation 45% → 70%) with no extra false positives. LLM summary done (`backend/app/ai.py`) plus case Q&A and plain-English queue search: every number in a summary is checked automatically against the case file (instead of a 10-alert spot check), with a retry and then a template fallback. Also added: structuring and 24-hour-rule compliance indicators, per-transaction flags, a weekly timeline and a printable case report. Jube not started.
 
 ---
 
@@ -197,5 +211,7 @@ Only start after steps 1–6 work end to end. Suggested order:
 **Tool / library:** whatever runs the stack locally. A one-command start script (`run_demo.sh` / `run_demo.ps1`) is recommended.
 
 **Owner:** TBD
+
+**Status:** `docs/DEMO.md`, `run_demo.ps1` and `run_demo.sh` done; showcase alerts ALR-01023 (AML), ALR-04590 (Fraud), ALR-01095 (Safer Gambling). Slides and time limit TBD.
 
 **Done when:** a teammate who did not build it can start the stack from a clean clone using `README.md` and walk through all 4 requirements within the time limit (**TBD**).

@@ -1,6 +1,6 @@
-# Design Direction — DRAFT
+# Design Direction
 
-> **Pre-build draft.** Nothing is built yet. This file sets a starting direction so the dashboard can be built consistently. Once the frontend exists, regenerate this file from the real code with `/impeccable document`, which will replace this draft.
+> **Implemented** in `frontend/` (2026-10-15). Where the build differs from the original draft, the change is noted inline as *Built:*. The original plan was to regenerate this file from the real code with `/impeccable document`; that has not been run yet.
 >
 > Product context lives in [PRODUCT.md](PRODUCT.md). If the two conflict, PRODUCT.md wins.
 
@@ -34,7 +34,7 @@
 | High | 70–89 | `#B4500F` | `#FFFFFF` | 3 of 4 segments |
 | Critical | 90–100 | `#8E1B1B` | `#FFFFFF` | 4 of 4 segments + bold label |
 
-Band thresholds are **TBD**: these are a draft and will be tuned in the validation step.
+Band thresholds were checked in the validation step and kept as drafted (see `docs/VALIDATION.md`). Players at Medium (40) or above become alerts.
 
 All text/fill pairs above are intended to meet WCAG AA (4.5:1). Re-check them with a contrast tool once implemented.
 
@@ -102,9 +102,10 @@ Single-page desktop dashboard, minimum width 1280px for the demo. Mobile is not 
 
 ### 7.1 Alert queue
 - Table columns: **Risk badge** · **Player ID** · **Top reason** (one line) · **Team** (AML / Fraud / Safer Gambling) · **Anomaly types** (text tags) · **Last activity** · **Status** (New / In review / Escalated / Closed).
-- Default sort: risk score, descending. Sortable by every column.
+- *Built:* the anomaly-type tags sit under the top reason in one cell (at most two tags plus "+N more"), and last activity shows the date over the time, so all columns fit in half of a 1280–1440px screen.
+- Default sort: risk score, descending. Sortable by every column (*Built:* anomaly types sort with the top reason).
 - Filters: band, team, anomaly type, status.
-- Keyboard: ↑/↓ moves the selection, Enter opens the alert, `/` focuses search.
+- Keyboard: ↑/↓ moves the selection, Enter opens the alert, `/` focuses search. *Built:* also `D` jumps to the decision buttons and `Esc` returns to the queue; focus starts on the top row.
 - Selected row: `--surface-sunk` background + 3px `--accent` left border.
 
 ### 7.2 Player detail panel
@@ -116,25 +117,26 @@ Single-page desktop dashboard, minimum width 1280px for the demo. Mobile is not 
 - Each item has: **reason title** (plain English), **evidence line** (the actual numbers), **comparison** (vs own baseline and/or vs peer median), **contribution** (points added to the score), **anomaly type tag**.
 - Example:
   > **Deposits far above declared income** — $18,400 deposited in 30 days; declared income band $40–60k/yr. Peer median: $620. **+28 pts** · Income mismatch
-- If SHAP is used, its top features map onto these same reason items. Raw SHAP plots are not shown to investigators.
-- Optional LLM summary sits **above** the list, labelled "Summary generated from the evidence below", and is never shown without the list.
+- If SHAP is used, its top features map onto these same reason items. Raw SHAP plots are not shown to investigators. *Built:* the model is one reason (`ML_MODEL`, "AI model: matches known risk patterns") whose detail names its top SHAP drivers.
+- Optional LLM summary sits **above** the list, labelled "Summary generated from the evidence below", and is never shown without the list. *Built:* it also says whether the AI or the built-in template wrote it.
 
 ### 7.4 Peer comparison chart
 - Horizontal dot/strip plot per metric (e.g., 30-day deposits, average stake, bets per day, distinct locations).
 - Show the peer-group distribution (median + interquartile band in grey), the player's own 90-day baseline (hollow marker) and the player's current value (solid marker in `--ink`).
 - Value labels printed next to markers. No reliance on colour.
-- Library: hand-built SVG or Chart.js (**TBD**).
+- Library: *Built:* hand-built SVG, no dependency. Money and count axes are logarithmic (spend is heavy-tailed); a whisker shows the peer 5th–95th percentile. The SVG has an `aria-label` that reads out every value.
 
 ### 7.5 Recommended action
 - One primary recommendation with its rationale, e.g. "Request source of funds: deposits exceed income band by 30×."
 - Buttons: **Accept recommendation** (primary, `--accent`), **Escalate**, **Close as explained** (requires a short reason), **Assign to team**.
-- Decisions are written back to the API / Jube case.
+- Decisions are written back to the API / Jube case. *Built:* stored by the API in `data/decisions.json` (no Jube yet).
+- *Built:* the recommendation and buttons are pinned to the bottom of the detail panel, so score, reasons and action are always on screen together while the rest scrolls.
 
 ### 7.6 Supporting components (MVP)
 Filter bar, status tag, anomaly-type tag (text, neutral outline), "SYNTHETIC DATA" tag, empty state ("No alerts match these filters"), loading state (skeleton rows), and error state (plain message + retry).
 
 ### 7.7 Stretch components
-Linked-players network view (node-link graph of shared devices/payment methods/addresses), activity timeline, case notes.
+Linked-players network view (node-link graph of shared devices/payment methods/addresses), activity timeline, case notes. *Built (bare-bones, for polish):* weekly activity timeline (hand-built SVG), "Ask about this case", "Ask the queue" search, per-transaction flag tags with a flagged-only toggle, and a Case report link.
 
 ## 8. Motion
 
