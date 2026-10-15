@@ -30,3 +30,6 @@ data/**/*.csv
 
 # Confidential challenge brief: never commit
 *brief*.pdf
+
+# Local investigator decisions (SQLite)
+data/*.db
