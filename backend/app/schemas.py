@@ -18,7 +18,9 @@ class Reason(BaseModel):
     detail: str = Field(description="Plain-language sentence built only from the evidence values")
     evidence: dict[str, Any]
     comparison: dict[str, Any] = Field(description="peer_median and/or own_baseline for the same metric")
-    points: int
+    points: int = Field(description="Points counted in the score (half when a stronger flag of the same type exists)")
+    points_full: int | None = Field(None, description="Points before the same-type overlap discount")
+    overlap_discounted: bool = False
 
 
 class RecommendedAction(BaseModel):
@@ -45,6 +47,9 @@ class AlertSummary(BaseModel):
     recommended_action: str
     last_activity: str | None
     ml_probability: float | None = Field(None, description="Supervised model probability (out-of-fold)")
+    points_total: int = Field(0, description="Sum of counted reason points; breaks ties between equal scores")
+    confidence: Literal["High", "Medium", "Low"] | None = None
+    kind: Literal["alert", "watchlist"] = "alert"
 
 
 class AlertList(BaseModel):
@@ -58,6 +63,9 @@ class Profile(BaseModel):
     income_band: str
     home_region: str
     signup_date: str
+    kyc_status: str | None = None
+    pep: bool | None = None
+    sanctions_screening: str | None = None
 
 
 class Decision(BaseModel):
@@ -83,6 +91,11 @@ class MLInfo(BaseModel):
     scoring: str
 
 
+class Confidence(BaseModel):
+    level: Literal["High", "Medium", "Low"]
+    basis: str = Field(description="Why: independent evidence, AI probability, mitigating factors")
+
+
 class AlertDetail(BaseModel):
     alert_id: str
     player_id: str
@@ -105,13 +118,17 @@ class AlertDetail(BaseModel):
     synthetic: bool
     decisions: list[Decision]
     ml: MLInfo | None = None
+    kind: Literal["alert", "watchlist"] = "alert"
+    confidence: Confidence | None = None
+    mitigating: list[str] = Field(default_factory=list, description="Reasons the activity may be innocent")
+    behaviour_group: dict[str, Any] | None = None
 
 
 class DecisionIn(BaseModel):
     decision: Literal["accept", "escalate", "close", "assign"]
     note: str = Field("", max_length=1000, description="Required when closing")
     team: Team | None = Field(None, description="Required when assigning")
-    investigator: str = Field("", max_length=100)
+    investigator: str = Field("", max_length=100, description="Required: recorded in the audit trail")
 
 
 class DecisionOut(BaseModel):
@@ -175,6 +192,7 @@ class PeerComparison(BaseModel):
     peer_group_level: str
     peer_group_size: int
     metrics: list[PeerMetric]
+    behaviour_group: dict[str, Any] | None = Field(None, description="Players who usually bet alike (k-means group)")
 
 
 class SharedIdentifier(BaseModel):
@@ -206,6 +224,7 @@ class Meta(BaseModel):
     bands: list[str]
     teams: list[str]
     anomaly_types: dict[str, str]
+    watchlist: int = 0
     statuses: list[str]
     transaction_flags: dict[str, str]
     ai: dict[str, Any]

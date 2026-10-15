@@ -51,6 +51,9 @@ ML_FEATURES = [
     "new_devices_30d", "new_devices_outside_ontario_30d", "new_payment_methods_30d",
     "shared_identifier_count", "network_cluster_size",
     "threshold_24h_events_30d", "split_threshold_events_30d", "near_threshold_deposits_30d", "max_deposits_24h_30d",
+    "low_odds_share_30d", "third_party_deposits_30d", "uturn_withdrawals_30d", "quick_cashouts_30d",
+    "dormant_days_before_30d", "occupation_income_ratio", "deposit_occupation_ratio",
+    "z_cluster_deposits_30d", "z_cluster_avg_stake_30d", "kyc_unverified",
 ]
 PARAMS = dict(learning_rate=0.06, max_iter=250, max_leaf_nodes=15, min_samples_leaf=20,
               l2_regularization=1.0, random_state=SEED)
@@ -87,11 +90,20 @@ def drivers(x: pd.DataFrame, sv: np.ndarray, typical: pd.Series) -> list[str]:
     return out
 
 
+def score_population(bundle: dict, f: pd.DataFrame) -> pd.DataFrame:
+    """Score a population the saved model never saw (used by cross_seed.py). Same output as training."""
+    x = f[bundle["features"]].astype(float)
+    model = bundle["model"]
+    sv = shap_values(model, x)
+    return pd.DataFrame({"ml_probability": np.round(model.predict_proba(x)[:, 1], 4),
+                         "ml_drivers": drivers(x, sv, bundle["typical"])}, index=f.index)
+
+
 def precision_at(prob: pd.Series, y: pd.Series, k: int) -> float:
     return round(float(y[prob.sort_values(ascending=False, kind="stable").index[:k]].mean()), 3)
 
 
-def train() -> tuple[pd.DataFrame, dict, HistGradientBoostingClassifier]:
+def train() -> tuple[pd.DataFrame, dict, dict]:
     f = pd.read_parquet(FEATURES / "player_features.parquet").set_index("player_id")
     labels = pd.read_csv(SYNTH / "scenario_labels.csv")
     x = f[ML_FEATURES].astype(float)
@@ -138,15 +150,15 @@ def train() -> tuple[pd.DataFrame, dict, HistGradientBoostingClassifier]:
         ],
     }
     scores = pd.DataFrame({"ml_probability": prob.round(4), "ml_drivers": drv}).reset_index()
-    return scores, card, final
+    return scores, card, {"model": final, "features": ML_FEATURES, "typical": typical}
 
 
 def main():
-    scores, card, final = train()
+    scores, card, bundle = train()
     FEATURES.mkdir(parents=True, exist_ok=True)
     MODELS.mkdir(parents=True, exist_ok=True)
     scores.to_parquet(FEATURES / "ml_scores.parquet", index=False)
-    joblib.dump({"model": final, "features": ML_FEATURES}, MODELS / "risk_model.joblib")
+    joblib.dump(bundle, MODELS / "risk_model.joblib")
     (MODELS / "model_card.json").write_text(json.dumps(card, indent=2) + "\n", encoding="utf-8")
     m = card["metrics"]
     print(f"out-of-fold ROC-AUC={m['roc_auc']} AP={m['average_precision']} p@50={m['precision_at_50']} "

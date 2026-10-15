@@ -89,8 +89,16 @@ def render(alert: dict, player: dict, peers: dict, network: dict, flagged: list[
         f"<td>{e(t.get('ip_region') or '')}</td><td>{e(', '.join(TXN_FLAGS.get(f, f) for f in t['flags']))}</td></tr>"
         for t in flagged[:40])
     dec_rows = "".join(
-        f"<tr><td class='mono'>{e(d['recorded_at'])}</td><td>{e(d['decision'])}</td><td>{e(d['status'])}</td>"
+        f"<tr><td class='mono'>{e(d['recorded_at'])}</td><td>{e(d.get('investigator') or 'not recorded')}</td>"
+        f"<td>{e(d['decision'])}</td><td>{e(d['status'])}</td>"
         f"<td>{e(d.get('team') or '')}</td><td>{e(d.get('note') or '')}</td></tr>" for d in alert.get("decisions", []))
+    conf = alert.get("confidence") or {}
+    mitig = "".join(f"<li>{e(m)}</li>" for m in alert.get("mitigating", []))
+    conf_html = (f"<h2>Assessment confidence</h2><p><b>{e(conf.get('level', 'n/a'))}</b> "
+                 f"<span class='muted'>({e(conf.get('basis', ''))})</span></p>"
+                 + (f"<p>Mitigating factors (reasons this may be innocent):</p><ul>{mitig}</ul>" if mitig
+                    else "<p class='muted'>No mitigating factors found.</p>"))
+    bg = alert.get("behaviour_group") or {}
     links_html = table(["Player", "Risk", "Shared identifiers"], link_rows,
                        "No other account shares a device, payment method or address.", (1,))
     flags_html = table(["Time", "Type", "Amount", "Location", "Flags"], flag_rows,
@@ -98,7 +106,8 @@ def render(alert: dict, player: dict, peers: dict, network: dict, flagged: list[
     if len(flagged) > 40:
         flags_html += f'<p class="muted">Showing 40 of {len(flagged)} flagged transactions.</p>'
     peer_html = table(["Metric", "Last 30 days", "Own baseline", "Peer median", "Peer z"], peer_rows, "", (1, 2, 3, 4))
-    dec_html = table(["Recorded", "Decision", "Status", "Team", "Note"], dec_rows, "No decisions recorded yet.")
+    dec_html = table(["Recorded", "Investigator", "Decision", "Status", "Team", "Note"], dec_rows,
+                     "No decisions recorded yet.")
     s = player["summary"]
     key = [("30-day deposits", money(s["deposits_30d"])), ("Baseline deposits / 30 days", money(s["deposits_base_30d"])),
            ("30-day withdrawals", money(s["withdrawals_30d"])), ("Amount bet (30 days)", money(s["turnover_30d"])),
@@ -125,11 +134,17 @@ def render(alert: dict, player: dict, peers: dict, network: dict, flagged: list[
   <div><span>Income band</span>${e(p['income_band'])}/yr</div><div><span>Home region</span>{e(p['home_region'])}</div>
   <div><span>Signed up</span>{e(p['signup_date'])}</div>
   <div><span>Peer group</span>{e(alert['peer_group'])} ({alert['peer_group_size']} players)</div>
+  <div><span>Identity (KYC)</span>{e(str(p.get('kyc_status', 'n/a')))}</div>
+  <div><span>Screening</span>Sanctions: {e(str(p.get('sanctions_screening', 'n/a')))} · PEP: {'yes' if p.get('pep') else 'no'}</div>
+  <div><span>Behaviour group</span>{e(str(bg.get('name', 'n/a')))}{f" ({bg['size']} players)" if bg.get('size') else ''}</div>
 </div>
 <h2>Case summary</h2><div class="summary">{e(summary['text'])}<div class="muted" style="margin-top:6px;font-size:11px">{e(src)}</div></div>
+{conf_html}
 <h2>Recommended action</h2><div class="rec"><b>{e(rec['action'])}</b> ({e(rec['team'])})<br>
   <span class="muted">{e(rec['rationale'])}</span></div>
-<h2>Why flagged</h2><p class="muted">Score = sum of reason points ({alert['points_total']}), capped at 100.</p>
+<h2>Why flagged</h2><p class="muted">Points total {alert['points_total']} → score {alert['score']}. Points count
+one-for-one up to 70, then progressively less; within one anomaly type the strongest flag counts in full and the
+rest at half.</p>
 <table><thead><tr><th>Reason and evidence</th><th>Type</th><th class="num">Points</th></tr></thead><tbody>{rows}</tbody></table>
 {ml_html}
 <h2>Key figures</h2><table><tbody>{key_rows}</tbody></table>

@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.common import BANDS, DATA, FEATURES, MODELS, ROOT, SCORES, SYNTH, TXN_FLAGS, load_metadata
@@ -59,9 +59,14 @@ class Store:
                                + ", ".join(str(p.relative_to(ROOT)) for p in missing))
         self.meta = load_metadata()
         self.alerts = json.loads((SCORES / "alerts.json").read_text(encoding="utf-8"))
-        self.alert_by_id = {a["alert_id"]: a for a in self.alerts}
-        self.alert_by_player = {a["player_id"]: a for a in self.alerts}
-        self.type_labels = {t: lbl for a in self.alerts for t, lbl in zip(a["anomaly_types"], a["anomaly_type_labels"])}
+        wl = SCORES / "watchlist.json"
+        self.watchlist = json.loads(wl.read_text(encoding="utf-8")) if wl.exists() else []
+        both = self.alerts + self.watchlist
+        self.alert_by_id = {a["alert_id"]: a for a in both}
+        self.alert_by_player = {a["player_id"]: a for a in both}
+        self.type_labels = {t: lbl for a in both for t, lbl in zip(a["anomaly_types"], a["anomaly_type_labels"])}
+        xs = SCORES / "cross_seed.json"
+        self.cross_seed = json.loads(xs.read_text(encoding="utf-8")) if xs.exists() else None
         self.scores = pd.read_csv(SCORES / "risk_scores.csv").set_index("player_id")
         self.features = pd.read_parquet(FEATURES / "player_features.parquet").set_index("player_id")
         self.peer_stats = pd.read_parquet(FEATURES / "peer_stats.parquet").set_index(["peer_group", "feature"])
@@ -139,10 +144,16 @@ def get_player(player_id: str):
 
 def summary(a: dict) -> dict:
     return {**{k: a[k] for k in ["alert_id", "player_id", "score", "band", "anomaly_types",
-                                 "anomaly_type_labels", "top_reason", "last_activity"]},
+                                 "anomaly_type_labels", "top_reason", "last_activity", "points_total"]},
+            "kind": a.get("kind", "alert"), "confidence": (a.get("confidence") or {}).get("level"),
             "team": store.team(a), "status": store.status(a["alert_id"]),
             "recommended_action": a["recommended_action"]["action"],
             "ml_probability": (a.get("ml") or {}).get("probability")}
+
+
+def priority(r: dict) -> tuple:
+    """Queue order for equal scores: total points, then the AI model's probability."""
+    return (r["score"], r["points_total"], r["ml_probability"] or 0)
 
 
 def txn_rows(rows: pd.DataFrame) -> list[dict]:
@@ -175,6 +186,8 @@ def case_file(a: dict) -> dict:
         "profile": a["profile"], "peer_group": a["peer_group"], "window": a["window"],
         "reasons": [{k: r[k] for k in ["title", "detail", "points", "anomaly_type", "comparison"]} for r in a["reasons"]],
         "recommended_action": a["recommended_action"],
+        "confidence": a.get("confidence"), "mitigating_factors": a.get("mitigating", []),
+        "behaviour_group": a.get("behaviour_group"),
         "ai_model": None if not ml else {
             "probability": ml["probability"],
             "drivers": [{"feature": d["label"], "value": d["value"]} for d in ml["drivers"]]},
@@ -201,7 +214,7 @@ def health():
 def meta():
     return {
         "synthetic": True, "window_start": store.meta["start_date"], "window_end": store.meta["end_date"],
-        "players": len(store.players), "alerts": len(store.alerts),
+        "players": len(store.players), "alerts": len(store.alerts), "watchlist": len(store.watchlist),
         "bands": [name for _, name in reversed(BANDS)], "teams": ["AML", "Fraud", "Safer Gambling"],
         "anomaly_types": store.type_labels, "statuses": ["New", "In review", "Escalated", "Closed"],
         "transaction_flags": TXN_FLAGS, "ai": ai.llm.status(),
@@ -216,11 +229,16 @@ def list_alerts(
     status: str | None = Query(None, description="New / In review / Escalated / Closed"),
     q: str | None = Query(None, description="Search player or alert ID"),
     min_score: int | None = Query(None, ge=0, le=100, description="Only alerts scoring at least this"),
-    sort: str = Query("-score", description="Field to sort by; prefix with - for descending. "
-                                            "score, player_id, team, status, last_activity, band"),
+    confidence: str | None = Query(None, description="High / Medium / Low"),
+    sort: str = Query("-score", description="Field to sort by; prefix with - for descending. score (ties broken "
+                                            "by total points, then AI probability), ai, player_id, team, status, "
+                                            "last_activity, band"),
+    include_watchlist: bool = Query(False, description="Also return watchlist entries (below the alert line)"),
     limit: int = Query(500, ge=1, le=5000),
 ):
-    rows = [summary(a) for a in store.alerts]
+    rows = [summary(a) for a in store.alerts + (store.watchlist if include_watchlist else [])]
+    if confidence:
+        rows = [r for r in rows if r["confidence"] == confidence]
     if band:
         rows = [r for r in rows if r["band"] == band]
     if team:
@@ -236,7 +254,8 @@ def list_alerts(
         rows = [r for r in rows if needle in r["player_id"] or needle in r["alert_id"]]
     key, desc = sort.lstrip("-"), sort.startswith("-")
     sorters = {
-        "score": lambda r: r["score"], "player_id": lambda r: r["player_id"], "team": lambda r: r["team"],
+        "score": priority, "ai": lambda r: r["ml_probability"] or 0,
+        "player_id": lambda r: r["player_id"], "team": lambda r: r["team"],
         "status": lambda r: r["status"], "last_activity": lambda r: r["last_activity"] or "",
         "band": lambda r: BAND_ORDER[r["band"]], "top_reason": lambda r: r["top_reason"]["title"],
     }
@@ -261,6 +280,8 @@ def record_decision(alert_id: str, body: DecisionIn):
         raise HTTPException(422, "A reason is required to close an alert")
     if body.decision == "assign" and not body.team:
         raise HTTPException(422, "A team is required to assign an alert")
+    if not body.investigator.strip():
+        raise HTTPException(422, "Enter the investigator's name: every decision is recorded in the audit trail")
     record = {
         "decision": body.decision, "note": body.note.strip(), "team": body.team,
         "investigator": body.investigator.strip(), "status": STATUS_FOR[body.decision],
@@ -284,7 +305,8 @@ def player_detail(player_id: str, limit: int = Query(50, ge=1, le=1000),
     alert = store.alert_by_player.get(player_id)
     return {
         "player_id": player_id,
-        "profile": {k: p[k] for k in ["age_band", "occupation", "income_band", "home_region", "signup_date"]},
+        "profile": {k: clean(p[k]) for k in ["age_band", "occupation", "income_band", "home_region", "signup_date",
+                                             "kyc_status", "pep", "sanctions_screening"]},
         "peer_group": f.peer_group, "score": int(s.score), "band": s.band,
         "alert_id": alert["alert_id"] if alert else None,
         "summary": {k: clean(f[k]) for k in SUMMARY_FIELDS},
@@ -305,8 +327,14 @@ def player_peers(player_id: str):
             "peer": {"n": int(st.n), "active_only": bool(st.active_only),
                      **{k: clean(st[k]) for k in ["median", "q1", "q3", "p05", "p95"]}},
         })
+    behaviour = {
+        "name": f.behaviour_cluster_name, "size": int(f.behaviour_cluster_size),
+        "metrics": [{"feature": feat, "label": label, "current": clean(f[feat]),
+                     "median": clean(f[f"cluster_median_{feat}"]), "z": clean(f[f"z_cluster_{feat}"])}
+                    for feat, label in [("deposits_30d", "30-day deposits"), ("avg_stake_30d", "Average stake")]],
+    } if f.behaviour_cluster >= 0 else None
     return {"player_id": player_id, "peer_group": f.peer_group, "peer_group_level": f.peer_group_level,
-            "peer_group_size": int(f.peer_group_size), "metrics": metrics}
+            "peer_group_size": int(f.peer_group_size), "metrics": metrics, "behaviour_group": behaviour}
 
 
 @app.get("/players/{player_id}/network", response_model=Network)
@@ -372,15 +400,72 @@ def stats():
                 out[v] = out.get(v, 0) + 1
         return dict(sorted(out.items(), key=lambda kv: -kv[1]))
     codes = [x["code"] for a in store.alerts for x in a["reasons"]]
+    compliance = {label: codes.count(code) for code, label in [
+        ("STRUCTURING", "Structuring"), ("LARGE_TRANSACTION_24H", "$10,000+ in 24 hours"),
+        ("SANCTIONS_SCREENING", "Sanctions screening match"), ("KYC_UNVERIFIED", "Unverified identity"),
+        ("PEP_EDD", "PEP enhanced due diligence"), ("THIRD_PARTY_FUNDING", "Third-party funding"),
+        ("UTURN_WITHDRAWAL", "U-turn withdrawals"), ("DORMANT_REACTIVATION", "Dormant account reactivated")]}
+    mc = store.model_card or {}
     return {
-        "players": len(store.players), "alerts": len(rows),
+        "players": len(store.players), "alerts": len(rows), "watchlist": len(store.watchlist),
         "by_band": count("band"), "by_team": count("team"), "by_status": count("status"),
+        "by_confidence": count("confidence"),
         "by_anomaly_type": {store.type_labels.get(k, k): v for k, v in count("anomaly_types", many=True).items()},
-        "compliance": {"structuring_alerts": codes.count("STRUCTURING"),
-                       "reporting_threshold_alerts": codes.count("LARGE_TRANSACTION_24H")},
+        "compliance": compliance,
         "ai_model_alerts": codes.count("ML_MODEL"),
         "flagged_transactions": len(store.txn_flags),
+        "trends": flag_trends(),
+        "ai_model": {"metrics": mc.get("metrics"), "top_features": [g["label"] for g in mc.get("global_importance", [])[:6]],
+                     "cross_seed": store.cross_seed},
     }
+
+
+def flag_trends(weeks: int = 13) -> dict:
+    """Weekly counts of each transaction flag, with the last 4 weeks vs the 9 before ("emerging risk")."""
+    end = pd.Timestamp(store.meta["end_date"]) + pd.Timedelta(days=1)
+    start = end - pd.Timedelta(weeks=weeks)
+    flagged = store.tx[store.tx.txn_id.isin(store.txn_flags.keys())]
+    ts = store.ts[flagged.index]
+    keep = ts >= start
+    week = ((ts[keep] - start).dt.days // 7).astype(int)
+    counts: dict[str, list[int]] = {code: [0] * weeks for code in TXN_FLAGS}
+    for txn_id, w in zip(flagged.txn_id[keep], week):
+        for code in store.txn_flags[txn_id]:
+            counts[code][w] += 1
+    out = []
+    for code, series in counts.items():
+        recent, before = sum(series[-4:]) / 4, sum(series[:-4]) / max(1, weeks - 4)
+        change = None if before == 0 else round(recent / before - 1, 3)
+        out.append({"flag": code, "label": TXN_FLAGS[code], "weekly": series,
+                    "recent_weekly_avg": round(recent, 1), "earlier_weekly_avg": round(before, 1),
+                    "change": change, "rising": bool(before and recent >= 1.5 * before and recent >= 3)})
+    week_starts = [(start + pd.Timedelta(weeks=i)).date().isoformat() for i in range(weeks)]
+    return {"weeks": week_starts, "flags": sorted(out, key=lambda x: -(x["change"] or 0))}
+
+
+@app.get("/watchlist", response_model=AlertList)
+def watchlist():
+    """Players below the alert line whose pattern the AI models find very unusual or risk-like."""
+    rows = sorted((summary(a) for a in store.watchlist), key=priority, reverse=True)
+    return {"total": len(rows), "alerts": rows}
+
+
+@app.get("/audit")
+def audit():
+    """Every recorded decision, newest first: who decided what, when, and why."""
+    rows = [{"alert_id": aid, **d, "player_id": store.alert_by_id.get(aid, {}).get("player_id")}
+            for aid, hist in store.decisions.items() for d in hist]
+    rows.sort(key=lambda d: d["recorded_at"], reverse=True)
+    return {"total": len(rows), "decisions": rows}
+
+
+@app.get("/audit.csv", response_class=PlainTextResponse)
+def audit_csv():
+    """The audit trail as CSV (open in Excel)."""
+    cols = ["recorded_at", "alert_id", "player_id", "decision", "status", "team", "investigator", "note"]
+    df = pd.DataFrame(audit()["decisions"], columns=cols)
+    return PlainTextResponse(df.to_csv(index=False), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=audit_trail.csv"})
 
 
 @app.get("/model")
@@ -414,10 +499,18 @@ def alert_ask(alert_id: str, body: AskIn):
 @app.post("/ai/search", response_model=SearchOut)
 def ai_search(body: SearchIn):
     """Turn a plain-English request ("critical AML alerts with linked players") into queue filters."""
-    parsed = ai.parse_search(body.query, meta())
-    f = parsed["filters"]
-    result = list_alerts(band=f.get("band"), team=f.get("team"), type=f.get("type"), status=f.get("status"),
-                         q=f.get("q"), min_score=f.get("min_score"), sort=f.get("sort", "-score"), limit=5000)
+    m = meta()
+    parsed = ai.parse_search(body.query, m)
+
+    def run(f: dict) -> dict:
+        return list_alerts(band=f.get("band"), team=f.get("team"), type=f.get("type"), status=f.get("status"),
+                           q=f.get("q"), min_score=f.get("min_score"), sort=f.get("sort", "-score"), limit=5000)
+    result = run(parsed["filters"])
+    if parsed["source"] == "llm" and result["total"] == 0 and parsed["filters"]:
+        # The model's reading matched nothing: show everything rather than an empty queue, and say so.
+        parsed = {**parsed, "filters": {}, "explanation": "no filters (the AI's reading of this request matched no "
+                  "alerts, so all alerts are shown)"}
+        result = run({})
     return {"query": body.query, **parsed, **result}
 
 

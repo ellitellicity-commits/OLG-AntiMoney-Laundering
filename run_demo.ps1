@@ -1,5 +1,5 @@
 # One-command demo (Windows PowerShell): venv -> dependencies -> pipeline -> API + dashboard.
-#   .\run_demo.ps1                 full run (about a minute for the pipeline)
+#   .\run_demo.ps1                 full run (about 3 minutes for the pipeline)
 #   .\run_demo.ps1 -SkipPipeline   reuse existing data/ outputs
 #   .\run_demo.ps1 -Port 8001      serve on another port
 # If scripts are blocked: powershell -ExecutionPolicy Bypass -File .\run_demo.ps1
@@ -18,7 +18,7 @@ Write-Host "Installing dependencies"
 if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
 if (-not $SkipPipeline) {
-    foreach ($step in "generate_data", "build_features", "train_model", "detect", "validate") {
+    foreach ($step in "generate_data", "build_features", "train_model", "detect", "cross_seed", "validate") {
         Write-Host "`n== $step ==" -ForegroundColor Cyan
         & $py "backend\pipeline\$step.py"
         if ($LASTEXITCODE -ne 0) { throw "$step.py failed" }

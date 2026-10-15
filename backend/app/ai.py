@@ -166,10 +166,18 @@ _NUM = re.compile(r"(?<![\w.])(-|−)?\$?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*(%|x
 ALWAYS_OK = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 24, 30, 50, 90, 100, 120, 180, 2026, 10_000, 8_000, 9_999.99}
 
 
+_WORDS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen "
+                                         "fourteen fifteen sixteen seventeen eighteen nineteen twenty".split())}
+_WORD_RE = re.compile(r"\b(" + "|".join(_WORDS) + r")\b", re.I)
+
+
 def numbers_in(text: str) -> list[tuple[str, list[float]]]:
-    """(token, candidate values) for every number in free text, ignoring IDs, dates and times."""
+    """(token, candidate values) for every number in free text, ignoring IDs, dates and times.
+
+    Spelled-out numbers ("six") count too, so a model cannot slip a figure past the check in words.
+    """
     text = _DATES.sub(" ", _IDS.sub(" ", text))
-    out = []
+    out = [(m.group(0), [float(_WORDS[m.group(0).lower()])]) for m in _WORD_RE.finditer(text)]
     for m in _NUM.finditer(text):
         sign, whole, frac, unit = m.groups()
         v = float(whole.replace(",", "") + (frac or ""))
@@ -186,8 +194,8 @@ def numbers_in(text: str) -> list[tuple[str, list[float]]]:
     return out
 
 
-def allowed_numbers(obj) -> set[float]:
-    vals: set[float] = set(ALWAYS_OK)
+def allowed_numbers(obj, always_ok=ALWAYS_OK) -> set[float]:
+    vals: set[float] = set(always_ok)
 
     def walk(o):
         if isinstance(o, bool) or o is None:
@@ -209,8 +217,9 @@ def allowed_numbers(obj) -> set[float]:
     return vals
 
 
-def unverified_numbers(text: str, context) -> list[str]:
-    allowed = allowed_numbers(context)
+def unverified_numbers(text: str, context, strict: bool = False) -> list[str]:
+    """Numbers in `text` not found in `context`. strict=True drops the small always-allowed numbers."""
+    allowed = allowed_numbers(context, () if strict else ALWAYS_OK)
 
     def ok(c: float) -> bool:
         return any(abs(c - a) <= max(0.051, 0.012 * abs(a)) for a in allowed)
@@ -268,8 +277,46 @@ def template_summary(case: dict) -> str:
             f"Recommended next step: {rec['action'].rstrip('.')}.")
 
 
+_CODE_WORDS = re.compile(r"\b[A-Za-z]+(?:_[A-Za-z0-9]+)+\b")
+_LIST_MARKS = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+", re.M)
+SUMMARY_SKIP = {"ml_pattern", "overall_pattern"}  # model reasons are stated by code, not paraphrased
+
+
+def summary_facts(case: dict) -> dict:
+    """The small, plain-English input the model paraphrases: the top reason sentences, nothing raw.
+
+    Small local models garble large JSON (pairing the right number with the wrong metric), so the
+    model only ever sees finished sentences it has to condense.
+    """
+    reasons = [r for r in case["reasons"] if r["anomaly_type"] not in SUMMARY_SKIP][:3] or case["reasons"][:3]
+    return {"indicators": [{"title": r["title"], "evidence": r["detail"]} for r in reasons]}
+
+
+def summary_problems(text: str, facts: dict) -> list[str]:
+    """Reasons to reject the model's middle sentences: empty, invented numbers, field names, too long."""
+    if not text:
+        return ["the text was empty"]
+    problems = []
+    if bad := unverified_numbers(text, facts, strict=True):
+        problems.append("these figures do not appear in the evidence: " + ", ".join(bad))
+    if code := sorted(set(_CODE_WORDS.findall(text))):
+        problems.append("it shows field names instead of plain English: " + ", ".join(code))
+    if len(re.findall(r"[.!?](?:\s|$)", text)) > 3:
+        problems.append("it is longer than 2 sentences")
+    return problems
+
+
+def clean_sentences(text: str) -> str:
+    text = _LIST_MARKS.sub("", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def summarize(case: dict, refresh: bool = False, use_llm: bool = True) -> dict:
-    """AI summary of one case. use_llm=False returns a cached AI summary or the template, never waits on a model."""
+    """AI summary of one case. use_llm=False returns a cached AI summary or the template, never waits on a model.
+
+    Code writes the parts that must be exact (who, score, band, team, the AI-model line and the
+    recommended next step); the model writes only the middle: the strongest indicators in plain English.
+    """
     base = {"generated_at": now(), "label": "Summary generated from the evidence below"}
     template = {**base, "text": template_summary(case), "source": "template", "provider": None, "model": None,
                 "verified": True, "unverified_numbers": []}
@@ -282,29 +329,37 @@ def summarize(case: dict, refresh: bool = False, use_llm: bool = True) -> dict:
     if not use_llm:
         return template
 
+    facts = summary_facts(case)
     messages = [
         {"role": "system", "content": GUARDRAILS},
         {"role": "user", "content":
-            "Write a case summary of 3 to 4 sentences in plain text (no markdown, no lists). Cover: the score and "
-            "band; the two or three strongest indicators with their numbers; how the player compares with their "
-            "own history and with peers; and the recommended next step. Copy numbers exactly as written in the "
-            "case file.\n\nCASE FILE:\n" + json.dumps(case, default=str)},
+            "Below are the strongest risk indicators for one player, each with its evidence. Write 1 or 2 plain "
+            "sentences for an investigator that explain them together. Keep every number exactly as written in the "
+            "evidence and keep each number next to the thing it measures. No lists, no headings, no line breaks, "
+            "no field names. Do not mention the score, the team or any next step.\n\n"
+            "INDICATORS:\n" + json.dumps(facts, default=str)},
     ]
     try:
-        bad = []
+        problems: list[str] = []
         for attempt in range(2):
-            text = llm.chat(messages, max_tokens=700)
-            bad = unverified_numbers(text, case)
-            if text and not bad:
+            body = clean_sentences(llm.chat(messages, max_tokens=400))
+            problems = summary_problems(body, facts)
+            if not problems:
                 break
-            messages += [{"role": "assistant", "content": text},
-                         {"role": "user", "content": "These figures do not appear in the case file: "
-                          + ", ".join(bad) + ". Rewrite the summary using only numbers copied from the case file."}]
-        if not text or bad:
-            return {**template, "note": "The AI summary failed the number check (" + ", ".join(bad)
+            messages += [{"role": "assistant", "content": body},
+                         {"role": "user", "content": "Fix these problems and rewrite: " + "; ".join(problems) + "."}]
+        if problems:
+            return {**template, "note": "The AI summary failed its checks (" + "; ".join(problems)
                     + "); showing the built-in template instead.", "provider": cfg["provider"], "model": cfg["model"]}
     except RuntimeError as e:
         return {**template, "note": f"AI provider error ({e}); showing the built-in template."}
+    ml = case.get("ai_model")
+    ml_txt = ""
+    if ml and ml["probability"] >= 0.5:
+        p = "over 99%" if ml["probability"] > 0.99 else f"{ml['probability']:.0%}"
+        ml_txt = f" The AI risk model rates the pattern {p} likely to match known risk."
+    text = (f"{case['player_id']} scores {case['score']} ({case['band']}) for the {case['team']} team. "
+            f"{body.rstrip('.')}.{ml_txt} Recommended next step: {case['recommended_action']['action'].rstrip('.')}.")
     result = {**base, "text": text, "source": "llm", "provider": cfg["provider"], "model": cfg["model"],
               "verified": True, "unverified_numbers": []}
     _cache_put(key, result)
@@ -384,6 +439,8 @@ def keyword_filters(q: str, meta: dict) -> dict:
 
 def clean_filters(raw: dict, meta: dict) -> dict:
     """Keep only values the API understands; anything else is dropped, never guessed."""
+    # Models sometimes return lists or numbers where a single string belongs; keep strings only.
+    raw = {k: v for k, v in raw.items() if isinstance(v, str) or (k == "min_score" and isinstance(v, (int, float)))}
     out = {}
     if raw.get("band") in meta["bands"]:
         out["band"] = raw["band"]
@@ -425,9 +482,14 @@ def describe(f: dict, meta: dict) -> str:
 
 
 def parse_search(q: str, meta: dict) -> dict:
+    """Keywords first; the model is only asked when the keywords find nothing.
+
+    Small local models tend to add filters nobody asked for (an extra band or status), which
+    silently empties the queue, so a clear keyword match always wins.
+    """
     kw = clean_filters(keyword_filters(q, meta), meta)
     cfg = llm.config()
-    if cfg:
+    if cfg and not kw:
         schema = {"band": meta["bands"], "team": meta["teams"], "type": meta["anomaly_types"],
                   "status": meta["statuses"], "min_score": "integer 0-100", "q": "player ID like P01234 or alert "
                   "ID like ALR-01234", "sort": list(SORTS.values())}

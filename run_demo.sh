@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command demo (macOS / Linux / Git Bash): venv -> dependencies -> pipeline -> API + dashboard.
-#   ./run_demo.sh                  full run (about a minute for the pipeline)
+#   ./run_demo.sh                  full run (about 3 minutes for the pipeline)
 #   ./run_demo.sh --skip-pipeline  reuse existing data/ outputs
 #   PORT=8001 ./run_demo.sh        serve on another port
 set -euo pipefail
@@ -17,7 +17,7 @@ echo "Installing dependencies"
 "$PY" -m pip install -q -r requirements.txt
 
 if [ "${1:-}" != "--skip-pipeline" ]; then
-  for step in generate_data build_features train_model detect validate; do
+  for step in generate_data build_features train_model detect cross_seed validate; do
     echo; echo "== $step =="
     "$PY" "backend/pipeline/$step.py"
   done
