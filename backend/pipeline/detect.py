@@ -10,7 +10,8 @@ Every point in the score therefore traces back to a reason with evidence values.
 
 Outputs:
     data/scores/risk_scores.csv   player_id, score, band, team, top_reason_code, anomaly_types,
-                                  reason_codes, reason_count, rules_only_score, iforest_percentile
+                                  reason_codes, reason_count, raw_points, rules_only_score,
+                                  iforest_percentile
     data/scores/alerts.json       full alert objects (score >= ALERT_MIN_SCORE)
 """
 from __future__ import annotations
@@ -31,7 +32,7 @@ from common import ALERT_MIN_SCORE, FEATURES_DIR, SCORES_DIR, band_for  # noqa: 
 # --------------------------------------------------------------------------------------
 WEIGHTS = {
     "type_cap": 50,
-    "z_threshold": 3.0,
+    "z_threshold": 2.5,  # chosen from the sweep in docs/VALIDATION.md (2.0 / 2.5 / 3.0 / 3.5)
     "income_ratio_min": 0.5,  # deposits_30d / monthly income
     "iforest_points": [(0.99, 15), (0.97, 10), (0.95, 5)],  # (percentile, points)
 }
@@ -69,6 +70,11 @@ PEER_LABELS = {
     "net_loss_30d": "net loss (30 days)",
     "turnover_30d": "amount staked (30 days)",
     "max_deposit_30d": "largest single deposit",
+}
+# A peer deviation only counts when the amount is material (AML-style floor): being 5x a $20 median is noise
+PEER_MATERIALITY = {
+    "deposits_30d": 500, "avg_stake_30d": 25, "bets_per_day_30d": 1.0,
+    "net_loss_30d": 250, "turnover_30d": 1000, "max_deposit_30d": 250,
 }
 IFOREST_FEATURES = [
     "deposit_to_income", "deposits_30d", "avg_stake_30d", "bets_per_day_30d", "net_loss_30d",
@@ -114,10 +120,13 @@ def rule_reasons(r: pd.Series, peers: PeerLookup, w=WEIGHTS) -> list[dict]:
     ratio = r["deposit_to_income"]
     if ratio >= w["income_ratio_min"] and r["deposits_30d"] >= 500:
         pts = 20 if ratio < 1 else (30 if ratio < 2 else (40 if ratio < 4 else 45))
+        title = "Deposits exceed declared income" if ratio >= 1 else "Deposits high for declared income"
+        occ = r["occupation"]
         out.append(reason(
-            "INCOME_MISMATCH", "income_mismatch", "Deposits far above declared income",
+            "INCOME_MISMATCH", "income_mismatch", title,
             f"Deposited {money(r['deposits_30d'])} in the last 30 days, {ratio:.1f}x the estimated monthly income "
-            f"of {money(r['monthly_income_estimate'])} for a {r['occupation']} in the {r['income_band']} band.",
+            f"of {money(r['monthly_income_estimate'])} for {'an' if occ[0].lower() in 'aeiou' else 'a'} {occ} "
+            f"in the {r['income_band']} band.",
             {"deposits_30d": r["deposits_30d"], "monthly_income_estimate": r["monthly_income_estimate"],
              "deposit_to_income": ratio, "income_band": r["income_band"], "occupation": r["occupation"]},
             {"peer_median": pm("deposits_30d"), "own_baseline": r["deposits_baseline_m"]}, pts))
@@ -126,8 +135,8 @@ def rule_reasons(r: pd.Series, peers: PeerLookup, w=WEIGHTS) -> list[dict]:
     if r["deposits_30d"] >= 1000 and r["withdrawal_to_deposit_30d"] >= 0.6 and r["turnover_to_deposit_30d"] < 1.0:
         out.append(reason(
             "CASH_IN_CASH_OUT", "cash_cycling", "Money in and out with little betting",
-            f"Withdrew {r['withdrawal_to_deposit_30d']:.0%} of {money(r['deposits_30d'])} deposited, while only staking "
-            f"{r['turnover_to_deposit_30d']:.0%} of deposits.",
+            f"Withdrew {money(r['withdrawals_30d'])} ({r['withdrawal_to_deposit_30d']:.0%} of the {money(r['deposits_30d'])} "
+            f"deposited) after staking only {money(r['turnover_30d'])} ({r['turnover_to_deposit_30d']:.0%} of deposits).",
             {"deposits_30d": r["deposits_30d"], "withdrawals_30d": r["withdrawals_30d"], "turnover_30d": r["turnover_30d"],
              "withdrawal_to_deposit_30d": r["withdrawal_to_deposit_30d"], "turnover_to_deposit_30d": r["turnover_to_deposit_30d"]},
             {"peer_median": None, "own_baseline": None}, 20))
@@ -217,7 +226,7 @@ def peer_reasons(r: pd.Series, peers: PeerLookup, w=WEIGHTS) -> list[dict]:
     flagged = []
     for feat, label in PEER_LABELS.items():
         z = r[f"z_{feat}"]
-        if z >= w["z_threshold"] and r["bet_count_30d"] >= 3:
+        if z >= w["z_threshold"] and r["bet_count_30d"] >= 3 and r[feat] >= PEER_MATERIALITY[feat]:
             flagged.append((z, feat, label))
     if not flagged:
         return []
@@ -338,6 +347,7 @@ def score_players(f: pd.DataFrame, stats: pd.DataFrame, w=WEIGHTS) -> tuple[pd.D
                      "top_reason_code": reasons[0]["code"] if reasons else "",
                      "anomaly_types": ";".join(types), "reason_codes": ";".join(x["code"] for x in reasons),
                      "reason_count": len(reasons),
+                     "raw_points": sum(x["points"] for x in reasons),
                      "rules_only_score": rules_only_score(r), "iforest_percentile": round(float(pct[pid]), 4)})
         if score >= ALERT_MIN_SCORE:
             alerts.append({
@@ -350,10 +360,12 @@ def score_players(f: pd.DataFrame, stats: pd.DataFrame, w=WEIGHTS) -> tuple[pd.D
                     "deposits_30d", "withdrawals_30d", "turnover_30d", "net_loss_30d", "bet_count_30d",
                     "avg_stake_30d", "deposits_baseline_m", "monthly_income_estimate"]},
                 "reasons": reasons, "recommended_action": rec, "summary": summary(r, score, band, reasons, rec),
-                "iforest_percentile": round(float(pct[pid]), 4),
+                "iforest_percentile": round(float(pct[pid]), 4), "raw_points": sum(x["points"] for x in reasons),
             })
-    scores = pd.DataFrame(rows).sort_values(["score", "player_id"], ascending=[False, True]).reset_index(drop=True)
-    alerts.sort(key=lambda a: (-a["score"], a["player_id"]))
+    # ties (mostly at 100) are broken by total uncapped evidence points, then the model percentile
+    scores = pd.DataFrame(rows).sort_values(["score", "raw_points", "iforest_percentile", "player_id"],
+                                            ascending=[False, False, False, True]).reset_index(drop=True)
+    alerts.sort(key=lambda a: (-a["score"], -a["raw_points"], -a["iforest_percentile"], a["player_id"]))
     for i, a in enumerate(alerts, 1):
         a["rank"] = i
     return scores, alerts
