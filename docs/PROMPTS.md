@@ -469,3 +469,111 @@ Do not touch backend/, data/, run_demo.ps1, requirements files, the root PRODUCT
   - the "Recommended action" label sitting like a kicker (needs markup);
   - one tag plus "+N more" in the queue (needs JS).
 - The "Needs a JS change" list in R.2 is unchanged.
+
+## Chat panel frontend
+
+### C.1 — Persistent AI chat panel: plan, build and check (frontend only)   (date: 2026-10-15 · author: ellitellicity-commits · tool/model: Claude Code, claude-opus-5-5, `/impeccable shape`, `/impeccable craft`, `/impeccable critique`, `/impeccable polish`)
+
+**Context to paste:** `docs/CHAT_PANEL_PLAN.md`, the `frontend/` folder, `docs/DESIGN_RESTYLE.md`, `design-reference/`.
+
+**Exact prompt (Parts A and B; Part C commits and pushes the branch after the user replies "go"):**
+
+```text
+BRANCH CHECK (first):
+Run `git branch --show-current` and `git status`. If the branch is `frontend-polish` and there are no uncommitted changes to tracked files, run `git checkout -b frontend-chat`. If it is already `frontend-chat`, stay on it. Otherwise stop and tell me. Never work on `frontend-polish`, `wireframe`, `integration`, `main` or `backend`. Run no other git command that changes anything until PART C.
+
+GOAL: Build the frontend half of the AI chat panel described in docs/CHAT_PANEL_PLAN.md, in three parts: A) plan, B) build and check, C) commit and push the branch after I reply "go". If an Impeccable command named below is not recognized, tell me and use the closest available one.
+
+SCOPE: the frontend parts of the plan only: section 3 (layout), section 4 (behaviour), the Pin to case button and display from section 10, and section 12. Out of scope, because they belong to the backend teammate: the /chat implementation, retrieval, lookup tools, Groq and Ollama, the server-side safety checks, and note storage.
+
+HARD RULES (for the whole task):
+- Frontend only. Do not touch backend/, data/, run_demo.ps1, requirements files, or the root PRODUCT.md and DESIGN.md. Never stage or commit .claude/.
+- Never write an API key or secret anywhere (code, docs, commits).
+- Never render model text with innerHTML; build DOM nodes or use textContent. Make player and alert IDs clickable only if they match the known patterns (P00000, ALR-00000, WL-00000) and are not listed in unknown_ids. Render action buttons only from the whitelist (open alert, apply filter, sort, show watchlist) with validated values, and do nothing until the investigator clicks.
+- The chat can never record, draft-and-submit, or trigger a decision (Accept, Escalate, Close, Assign). Do not wire any decision endpoint to the chat.
+- Keep every existing feature working (queue, filters, sort, search, existing keyboard shortcuts, tabs, decision forms, watchlist, Team overview, mock mode). Remove only the "Ask AI" tab, as the plan says.
+- Do not invent data. Do not add features outside the plan.
+
+PART A: PLAN (create only docs/CHAT_FRONTEND_OUTLINE.md and docs/CHAT_CONTRACT.md; edit nothing else)
+Read first: docs/CHAT_PANEL_PLAN.md, the frontend folder (index.html, styles.css, app.js, mock/), docs/DESIGN_RESTYLE.md and design-reference/.
+1. Inventory the current frontend (views, state, routing, fetch layer, the Ask AI tab, decision forms, filters, keyboard shortcuts, mock mode) and write a regression list of every existing feature that must keep working.
+2. Run /impeccable shape on the new layout. Write text wireframes for Mode 1 (queue) and Mode 2 (alert with Back to queue, previous and next) and for laptop, tablet and phone widths (propose how the chat collapses to a thin bar or overlay below about 1100px). Cover the context chip, "Now viewing" dividers, per-answer footer, clickable IDs, action buttons, Pin to case and New chat. Follow the Case File direction: calm and regulatory, no AI-sparkle gradients, risk never by colour alone.
+3. Write the technical design: state shape; a view router (queue, overview, alert) where previous and next follow the current filter and sort order; the context object builder (view, alert_id, filters, sort, visible_count); the message store with sessionStorage wrapped in try/catch; a chat transport that posts to the API's /chat in live mode plus a built-in stub, enabled with the URL parameter ?chat=stub, that returns responses in the contract's shape; the mock-mode message "AI unavailable in offline demo data"; safe rendering; the ID and action rules above; keyboard plan (keep existing shortcuts, add Ctrl+K for the chat input, make Esc in Mode 2 go back to the queue); aria-live announcements; focus management.
+4. Create docs/CHAT_CONTRACT.md: copy the /chat request and response shapes and the notes endpoints from section 11 of the plan verbatim as the agreed contract with the backend teammate, then add example stub responses for: a normal answer; an answer with clickable IDs and actions; an assumption line; unverified numbers; unknown IDs; fallback_used true; an offline or error response; and the notes responses. State that neither side changes the shape without telling the other.
+5. Open decisions: do not wait for me. For each open decision, choose the proposed default, record it under "Decisions taken" in the outline, and continue.
+6. Mark every piece of work as "UI only", "JS state" or "needs backend", with a build order and the regression risks.
+
+PART B: BUILD AND CHECK
+/impeccable craft the chat panel, following the outline and docs/CHAT_CONTRACT.md. Live mode posts to the API's /chat; if /chat does not exist, show a calm "AI is unavailable" message and keep the rest of the dashboard working. Build: the two-column shell and the queue, overview and alert views with Back to queue, previous and next; the persistent chat with the context chip, "Now viewing" dividers, "Thinking...", the per-answer footer, clickable IDs, action buttons, Pin to case and New chat; the conversation kept in state and sessionStorage (try/catch, works without it); Ctrl+K to the chat input; Esc in Mode 2 back to the queue.
+DESIGN: follow Impeccable's design guidance and the Case File direction. The chat panel is about 35% wide (minimum 360px) and collapsible to a thin bar. Motion under 300ms and disabled under prefers-reduced-motion. WCAG AA contrast. New answers are announced through an aria-live region, the input has a label, and the whole chat works by keyboard alone.
+CHECKS before finishing:
+1. `git diff --stat` and `git status`: changes only in frontend/ and docs/; nothing under backend/ or data/; the root PRODUCT.md and DESIGN.md unchanged. Search the diff for anything that looks like an API key or secret and report the result.
+2. Regression: run the same automated browser checks as in the earlier restyle (queue, filters, sort, ID search, keyboard, case summary, all tabs, plain-English search, watchlist, Team overview, decision forms open and close, a decision refused without a name), using a throwaway copy of the data so nothing is saved. Confirm mock mode renders.
+3. Chat, in stub mode: the conversation survives opening rows, Back, next and previous, filter changes, the Overview tab and a browser refresh; New chat is the only thing that clears it; the context chip is always correct; a divider appears when a different row opens; IDs, unknown IDs and action buttons behave as specified; the chat cannot trigger a decision; a stub answer containing <img onerror> and <script> text renders as plain text; keyboard-only use works.
+4. Screenshots at 1440x900, 1280x800, 1100, 820 and 390 wide, collapsed and expanded, if a browser is available. If not, say so.
+5. Run /impeccable critique, apply the low-risk fixes, run /impeccable polish, and list the rest.
+6. Add a "Chat panel" section to docs/DESIGN_RESTYLE.md, and log this prompt and its result in docs/PROMPTS.md under "Chat panel frontend".
+7. Create docs/CHAT_HANDOFF.md, a one-page start-here guide for teammates and their AI assistants, with: what the chat panel is and which branch it lives on (frontend-chat, stacked on frontend-polish, not merged anywhere); how to get it (`git fetch origin`, then `git checkout frontend-chat`); how to run it (open the dashboard with ?chat=stub for the built-in stub, and without it for live mode once the backend has /chat); what is built, what is stubbed, and what the backend teammate must provide (point to docs/CHAT_CONTRACT.md); the files changed; known gaps; and rules for any AI assistant working on this branch: read docs/CHAT_PANEL_PLAN.md, docs/CHAT_CONTRACT.md and docs/CHAT_FRONTEND_OUTLINE.md first; never push to or merge into integration, main, wireframe or frontend-polish; never change the /chat contract without the team agreeing; the chat must never record or trigger decisions; never write secrets.
+Then STOP. Print the check results, the critique score, the "Decisions taken" list from the outline, what was not verified, and a short "backend teammate must provide" list. Wait for me to reply "go". Do not run any git command that changes anything until I do. If a check fails, fix or revert it, tell me, and wait.
+
+PART C: COMMIT AND PUSH THE BRANCH ONLY (only after I reply "go"; no pull request, no merge)
+1. Run `git branch --show-current` (must be frontend-chat), then `git status` and `git diff --stat`. Only these paths are allowed: the frontend folder, docs/CHAT_PANEL_PLAN.md, docs/CHAT_FRONTEND_OUTLINE.md, docs/CHAT_CONTRACT.md, docs/CHAT_HANDOFF.md, docs/DESIGN_RESTYLE.md and docs/PROMPTS.md. If anything under backend/ or data/, a .env file, a secret, or .claude/ appears, stop and tell me.
+2. Stage only the allowed paths by name (never `git add .` or `git add -A`). Commit with the message: "Add persistent AI chat panel (frontend, stub until /chat exists)".
+3. Run `git fetch origin`. Without merging, run `git merge-tree --write-tree HEAD origin/frontend-polish` and `git merge-tree --write-tree HEAD origin/integration` and report any conflicted files for each (skip if the git version does not support it).
+4. Push only this branch: `git push -u origin frontend-chat`. Never use --force. Never push to, merge into, or open a pull request against frontend-polish, wireframe, integration, main or backend. If it fails, report the exact error and the likely fix.
+5. Print the branch, commit hash, files committed and the remote URL.
+6. Print the exact commands a teammate runs to see the branch (`git fetch origin`, then `git checkout frontend-chat`, or `git worktree add ..\AML-chat frontend-chat` to keep their own folder untouched), and a one-line instruction a teammate can give their Claude: "Open this repo on the frontend-chat branch and read docs/CHAT_HANDOFF.md first."
+7. Do not open a pull request. Write the draft PR description into your reply only, ready for later, saying the base would be `frontend-polish` while the restyle PR is open and `integration` after it merges.
+```
+
+**Expected output:** `frontend/index.html`, `frontend/styles.css`, `frontend/app.js`; new `docs/CHAT_FRONTEND_OUTLINE.md`, `docs/CHAT_CONTRACT.md`, `docs/CHAT_HANDOFF.md`; a "Chat panel" section in `docs/DESIGN_RESTYLE.md`; this entry. `docs/CHAT_PANEL_PLAN.md` (the plan, previously untracked) is committed with them.
+
+**What changed:**
+- Two-column shell; the work area shows the queue, the Team overview or one alert (Back to queue, Previous / Next in the current filter and sort order, position "n of N"). The view switch moved from the masthead into the work area. The Ask AI tab is removed.
+- The persistent assistant: context chip, "Now viewing" dividers, Thinking… with queued questions, per-answer footer (provider, numbers check, unknown IDs, cases used), clickable known IDs, whitelisted action buttons (labels written by the frontend), Pin to case (name required; Mode 1 asks which named alert), New chat, sessionStorage (try/catch), Ctrl+K, Esc back to the queue, aria-live announcements, collapsible rail on desktop, bottom bar and overlay below 1100px.
+- Live mode posts to `/chat`; a missing endpoint shows "AI is unavailable: this API does not have the /chat endpoint yet". `?chat=stub` answers in the contract's shape from the rows on screen and stubs the notes endpoints. Mock mode shows "AI unavailable in offline demo data".
+- The decision history is built as DOM nodes and lists pinned AI notes with Remove.
+
+**How we test it:**
+- `git status` / `git diff --stat`: only `frontend/` and `docs/` changed; nothing under `backend/` or `data/`; root `PRODUCT.md` and `DESIGN.md` unchanged. Secret scan of the diff and new docs: no keys or secrets (the only "token" hits are the existing `state.token` stale-response guard).
+- The API ran on a throwaway copy of the data in a temp folder (`OLG_DATA_DIR`, bytecode writing off). Headless Edge over CDP, no console errors:
+  - **Regression, 47/47 PASS:** queue, five filters, column sort and Sort by, `/` and ID search, Esc in search, ↑↓ and Enter, Mode 2 strip and position, case summary, Ask AI tab gone, 4 tabs, peer chart, flagged-only toggle, Close form (reason required, Cancel), Assign form, decision refused without a name, `D` in Mode 2 only, Next / Previous, Esc back to the queue with the row focused, plain-English search and Clear, watchlist toggle, Team overview and audit CSV link, no POST to `/decision`.
+  - **Chat in stub mode, 49/49 PASS:** context chip in every view; queued second question; answers in order; aria-live; links and 4 actions; filter change, rows, Back, Next / Previous, Overview and a refresh all keep the conversation; dividers (none duplicated on Next then Previous); Pin needs a name, pins, shows "AI note" in the history, can be removed; Mode 1 pin picker; each action type; assumption; unverified numbers; unknown ID plain and flagged; invalid actions dropped; fallback footer; offline; error notice; `<img onerror>` / `<script>` rendered as text with the title unchanged; hostile `accept` action dropped; no decision request; keyboard-only (Ctrl+K, Enter, Enter on an ID, collapse and expand); New chat clears and stays cleared after refresh; the input has a label.
+  - **Live mode, 3/3 PASS:** POST `/chat` → 404 → calm notice; the dashboard keeps working.
+  - **Mock mode, 6/6 PASS:** banner, 5 mock alerts, "AI unavailable in offline demo data" with the input disabled, Mode 2, an in-memory decision, and the stub working with `?chat=stub`.
+- Screenshots at 1440×900, 1280×800, 1100×900, 820×1180 and 390×844, Mode 1 and Mode 2, collapsed and expanded.
+- `/impeccable critique` (dual-agent): **26/40**. The detector findings were false positives or the intended palette. Low-risk fixes and `/impeccable polish` are listed in `DESIGN_RESTYLE.md` §9.
+
+**What went wrong / how we fixed it:**
+- Moving the view switch off the navy masthead left it with masthead text colours on paper (the design hook flagged low contrast). It was restyled as ink on paper with an accent underline.
+- Next then Previous with no question in between stacked two "Now viewing" dividers. Fixed: the replaced divider re-checks the one before it.
+- The warning list rendered "48,000 , 6" because flex gaps split the text nodes. Fixed by wrapping the text in one span.
+- Driver bugs, not app bugs: synthetic Enter needed its `\r` text to activate buttons; a refused decision correctly left focus in the name field, so the `D` test now blurs first; there is no "last activity" column header, so the sort check reads the Sort by menu.
+
+**Not verified:** a real `/chat` and the notes endpoints (they do not exist yet); a real LLM (the throwaway data has no provider configured, so the summary used the built-in template); screen readers (only DOM semantics and the aria-live text were checked); touch devices (only mobile emulation).
+
+**Follow-up in the same session (additions requested before Part C, then a resume after a network disconnect):**
+
+```text
+go, but first do the additions below, then re-check, then continue to PART C only if every re-check passes.
+1. Fix the §9 items where low risk: (a) per-answer metadata into a collapsed, keyboard-accessible "Details" disclosure, warnings always visible; (b) a "new answer" count badge on the collapsed rail and the mobile bottom bar, announced via aria-live, cleared on open; (c) the missing desktop keyboard shortcut, shown in the hints, no clash with arrows, Enter, /, D, Esc, Ctrl+K; (d) New chat: NO confirmation and NO undo, recorded as a deliberate decision.
+2. CHAT_CONTRACT.md §3: mark proposed items "PROPOSED, needs backend confirmation"; CORS must allow DELETE; notes in GET /audit, /audit.csv and the case report.
+3. CHAT_HANDOFF.md: Decisions taken, Not verified, Backend teammate must provide, Test it.
+4. Leave .impeccable/ untracked and note its ignores are local only.
+5. Report whether a test API from this session is still running.
+RE-CHECKS, then /impeccable critique and polish (low-risk fixes only), update DESIGN_RESTYLE.md §9 and this entry, then PART C.
+```
+
+(The resume prompt after the disconnect repeated these steps, asked to verify edits for damage, to stop only processes this session started, and to use port 8002 for any new test server.)
+
+**What changed in the follow-up:**
+- Details disclosure, new-answer badge, Esc-to-collapse (decisions 22–25 in CHAT_FRONTEND_OUTLINE.md §7; New chat without undo is deliberate).
+- CHAT_CONTRACT.md §3 rewritten as a PROPOSED table plus the required CORS and audit items; CHAT_HANDOFF.md gained Test it, Backend teammate must provide, Decisions taken, Not verified and the `.impeccable/` note.
+- Round-2 critique **29/40**; low-risk fixes (24px targets, Pin stays put, log scroll padding, IME-safe Esc).
+- **Page-height bug** found by a new check: screen-reader-only spans inside unpositioned scroll boxes stretched the desktop document (13,645px on the queue view, an existing issue from the "+N more" text, and the same pattern in the new chat log). Fixed with `position: relative` on the four scroll boxes.
+
+**How we test it (follow-up):** fresh throwaway data copy, API on port 8002 (port 8000 was in use by an unrelated app; the earlier 8011 test API from this session was stopped). Regression **48/48** (47 + page height), chat **66/66** (49 + Details ×6, Esc collapse ×2, badge ×7, page height), live **3/3**, mock **6/6**, no console errors. Screenshots at the five widths plus badge and Details states.
+
+**What went wrong / how we fixed it:**
+- A wrapped keyboard hint and, more importantly, the escaping hidden spans made the desktop page taller than the viewport; diagnosed with a CDP probe after the screenshot run showed a 37px page shift.
+- A network disconnect interrupted the run; on resume, all edits were re-read (none half-applied or duplicated) and the suites re-run from scratch.
