@@ -1,0 +1,135 @@
+{
+  "_note": "Hand-written SYNTHETIC sample data in the step 3 reason format. Used by the dashboard when the API is not running. Not produced by the pipeline.",
+  "alerts": [
+    {
+      "alert_id": "ALR-90001", "player_id": "P90001", "score": 95, "band": "Critical", "team": "AML", "status": "New",
+      "anomaly_types": ["income_mismatch", "money_movement", "peer_deviation"],
+      "anomaly_type_labels": ["Income mismatch", "Money movement", "Peer deviation"],
+      "top_reason": {"code": "INCOME_MISMATCH", "title": "Deposits far above declared income"},
+      "reasons": [
+        {"code": "INCOME_MISMATCH", "anomaly_type": "income_mismatch", "team": "AML", "title": "Deposits far above declared income",
+         "detail": "$18,400.00 deposited in 30 days, 4.4x the monthly income estimate of $4,166.67 (declared band 40-60k/yr).",
+         "evidence": {"deposits_30d": 18400, "income_band": "40-60k", "monthly_income_estimate": 4166.67, "deposit_income_ratio": 4.42},
+         "comparison": {"peer_median": 620, "own_baseline": 540}, "points": 34},
+        {"code": "CASH_IN_CASH_OUT", "anomaly_type": "money_movement", "team": "AML", "title": "Money in and out with little real betting",
+         "detail": "$18,400.00 deposited and $14,900.00 withdrawn in 30 days, but only $3,310.00 was bet (18% of deposits).",
+         "evidence": {"deposits_30d": 18400, "withdrawals_30d": 14900, "turnover_30d": 3310, "turnover_to_deposit_ratio": 0.18},
+         "comparison": {"own_baseline": 540}, "points": 25},
+        {"code": "PEER_DEPOSITS", "anomaly_type": "peer_deviation", "team": "AML", "title": "Deposits far above similar players",
+         "detail": "Deposits in 30 days: $18,400.00 vs peer median $620.00, 29.7x the peer median (z = 5.1, peer group 25-34 | 40-60k | Toronto).",
+         "evidence": {"deposits_30d": 18400, "peer_z": 5.1, "peer_group": "25-34 | 40-60k | Toronto"},
+         "comparison": {"peer_median": 620, "own_baseline": 540}, "points": 36}
+      ],
+      "points_total": 95,
+      "recommended_action": {"action": "Request source of funds and review for layering", "team": "AML",
+        "rationale": "Deposits are 4.4x monthly income and most of the money is withdrawn without being bet."},
+      "profile": {"age_band": "25-34", "occupation": "Bookkeeper", "income_band": "40-60k", "home_region": "Toronto", "signup_date": "2024-11-02"},
+      "peer_group": "25-34 | 40-60k | Toronto", "peer_group_level": "age x income x region", "peer_group_size": 88,
+      "last_activity": "2026-09-29 21:14", "window": {"current_days": 30, "baseline_days": 90, "end_date": "2026-09-30"}, "synthetic": true,
+      "peers": [
+        {"feature": "deposits_30d", "label": "30-day deposits", "unit": "money", "current": 18400, "baseline": 540, "z": 5.1,
+         "peer": {"n": 60, "active_only": true, "median": 620, "q1": 240, "q3": 1100, "p05": 60, "p95": 2600}},
+        {"feature": "avg_stake_30d", "label": "Average stake", "unit": "money", "current": 220, "baseline": 24, "z": 4.0,
+         "peer": {"n": 80, "active_only": true, "median": 25, "q1": 15, "q3": 41, "p05": 6, "p95": 90}}
+      ]
+    },
+    {
+      "alert_id": "ALR-90002", "player_id": "P90002", "score": 87, "band": "High", "team": "Fraud", "status": "New",
+      "anomaly_types": ["location_anomaly", "behaviour_change"],
+      "anomaly_type_labels": ["Location anomaly", "Behaviour change"],
+      "top_reason": {"code": "IMPOSSIBLE_TRAVEL", "title": "Activity from two places too far apart in time"},
+      "reasons": [
+        {"code": "IMPOSSIBLE_TRAVEL", "anomaly_type": "location_anomaly", "team": "Fraud", "title": "Activity from two places too far apart in time",
+         "detail": "3 pair(s) of transactions too close in time for the distance, e.g. Toronto 2026-09-21 21:04 -> Malta 21:40 (36 min).",
+         "evidence": {"impossible_travel_count_30d": 3, "example": "Toronto 2026-09-21 21:04 -> Malta 21:40 (36 min)"},
+         "comparison": {"own_baseline": 0}, "points": 34},
+        {"code": "OUT_OF_PROVINCE", "anomaly_type": "location_anomaly", "team": "Fraud", "title": "Activity from outside Ontario",
+         "detail": "19 transactions (41% of 30-day activity) from outside Ontario; home region Toronto; 2 distinct locations.",
+         "evidence": {"out_of_province_txns_30d": 19, "share_outside_ontario_30d": 0.41, "distinct_ip_regions_30d": 2, "home_region": "Toronto"},
+         "comparison": {"peer_median": 1}, "points": 23},
+        {"code": "NEW_DEVICE_OUTSIDE_ONTARIO", "anomaly_type": "location_anomaly", "team": "Fraud", "title": "New device used from outside Ontario",
+         "detail": "1 device(s) first seen in the last 30 days and used from outside Ontario; 1 new payment method(s).",
+         "evidence": {"new_devices_outside_ontario_30d": 1, "new_devices_30d": 1, "new_payment_methods_30d": 1},
+         "comparison": {"own_baseline": 0}, "points": 15},
+        {"code": "STAKE_ESCALATION", "anomaly_type": "behaviour_change", "team": "Safer Gambling", "title": "Stakes sharply up on own history",
+         "detail": "Average stake $182.40 vs $21.10 over the previous 90 days (8.6x) across 31 bets.",
+         "evidence": {"avg_stake_30d": 182.4, "stake_change_ratio": 8.64, "bets_30d": 31},
+         "comparison": {"own_baseline": 21.1, "peer_median": 23}, "points": 15}
+      ],
+      "points_total": 87,
+      "recommended_action": {"action": "Hold withdrawals and verify the account owner's identity (possible account takeover)", "team": "Fraud",
+        "rationale": "3 impossible-travel events and a new device used from outside Ontario."},
+      "profile": {"age_band": "35-44", "occupation": "Teacher", "income_band": "60-80k", "home_region": "Toronto", "signup_date": "2023-05-19"},
+      "peer_group": "35-44 | 60-80k | Toronto", "peer_group_level": "age x income x region", "peer_group_size": 74,
+      "last_activity": "2026-09-30 22:51", "window": {"current_days": 30, "baseline_days": 90, "end_date": "2026-09-30"}, "synthetic": true
+    },
+    {
+      "alert_id": "ALR-90003", "player_id": "P90003", "score": 70, "band": "High", "team": "Safer Gambling", "status": "New",
+      "anomaly_types": ["behaviour_change"], "anomaly_type_labels": ["Behaviour change"],
+      "top_reason": {"code": "DEPOSIT_SURGE", "title": "Deposits sharply up on own history"},
+      "reasons": [
+        {"code": "DEPOSIT_SURGE", "anomaly_type": "behaviour_change", "team": "Safer Gambling", "title": "Deposits sharply up on own history",
+         "detail": "$2,450.00 deposited in 30 days vs $310.00 per 30 days over the previous 90 (7.9x).",
+         "evidence": {"deposits_30d": 2450, "deposit_change_ratio": 7.9}, "comparison": {"own_baseline": 310, "peer_median": 280}, "points": 25},
+        {"code": "NIGHT_PLAY_SHIFT", "anomaly_type": "behaviour_change", "team": "Safer Gambling", "title": "Betting has moved to late night",
+         "detail": "46% of bets placed between midnight and 6 a.m., up from 4% over the previous 90 days.",
+         "evidence": {"night_share_30d": 0.46, "night_share_change": 0.42}, "comparison": {"own_baseline": 0.04, "peer_median": 0.03}, "points": 15},
+        {"code": "LOSS_CHASING", "anomaly_type": "behaviour_change", "team": "Safer Gambling", "title": "Losses sharply up on own history",
+         "detail": "Net loss of $1,620.00 in 30 days vs $180.00 per 30 days over the previous 90 (9.0x).",
+         "evidence": {"net_loss_30d": 1620, "loss_change_ratio": 9.0}, "comparison": {"own_baseline": 180, "peer_median": 40}, "points": 15},
+        {"code": "STAKE_ESCALATION", "anomaly_type": "behaviour_change", "team": "Safer Gambling", "title": "Stakes sharply up on own history",
+         "detail": "Average stake $64.00 vs $19.50 over the previous 90 days (3.3x) across 58 bets.",
+         "evidence": {"avg_stake_30d": 64, "stake_change_ratio": 3.28, "bets_30d": 58}, "comparison": {"own_baseline": 19.5, "peer_median": 22}, "points": 15}
+      ],
+      "points_total": 70,
+      "recommended_action": {"action": "Safer Gambling outreach: check in and offer deposit and loss limits", "team": "Safer Gambling",
+        "rationale": "Losses are 9.0x and deposits 7.9x the player's own 90-day baseline."},
+      "profile": {"age_band": "18-24", "occupation": "Server", "income_band": "20-40k", "home_region": "Hamilton-Niagara", "signup_date": "2025-01-12"},
+      "peer_group": "18-24 | 20-40k", "peer_group_level": "age x income", "peer_group_size": 241,
+      "last_activity": "2026-09-30 03:12", "window": {"current_days": 30, "baseline_days": 90, "end_date": "2026-09-30"}, "synthetic": true
+    },
+    {
+      "alert_id": "ALR-90004", "player_id": "P90004", "score": 43, "band": "Medium", "team": "AML", "status": "New",
+      "anomaly_types": ["peer_deviation", "overall_pattern"], "anomaly_type_labels": ["Peer deviation", "Overall pattern"],
+      "top_reason": {"code": "PEER_STAKE", "title": "Average stake far above similar players"},
+      "reasons": [
+        {"code": "PEER_STAKE", "anomaly_type": "peer_deviation", "team": "AML", "title": "Average stake far above similar players",
+         "detail": "Average stake: $540.00 vs peer median $45.00, 12.0x the peer median (z = 4.6, peer group 45-54 | 80-120k).",
+         "evidence": {"avg_stake_30d": 540, "peer_z": 4.6, "peer_group": "45-54 | 80-120k"}, "comparison": {"peer_median": 45, "own_baseline": 515}, "points": 33},
+        {"code": "ISOLATION_FOREST", "anomaly_type": "overall_pattern", "team": null, "title": "Unusual overall pattern",
+         "detail": "More unusual overall than 98.1% of players (Isolation Forest); most unusual: average stake, 30-day deposits.",
+         "evidence": {"if_percentile": 0.981, "if_score": 0.61, "top_features": {"avg_stake_30d": 540, "deposits_30d": 3900}}, "comparison": {}, "points": 10}
+      ],
+      "points_total": 43,
+      "recommended_action": {"action": "Review play against the declared profile; request source of funds if unexplained", "team": "AML",
+        "rationale": "Average stake far above similar players (z = 4.6) for peer group 45-54 | 80-120k."},
+      "profile": {"age_band": "45-54", "occupation": "Project manager", "income_band": "80-120k", "home_region": "Ottawa", "signup_date": "2022-08-30"},
+      "peer_group": "45-54 | 80-120k", "peer_group_level": "age x income", "peer_group_size": 176,
+      "last_activity": "2026-09-28 19:40", "window": {"current_days": 30, "baseline_days": 90, "end_date": "2026-09-30"}, "synthetic": true
+    },
+    {
+      "alert_id": "ALR-90005", "player_id": "P90005", "score": 80, "band": "High", "team": "AML", "status": "New",
+      "anomaly_types": ["linked_players", "money_movement"], "anomaly_type_labels": ["Linked players", "Money movement"],
+      "top_reason": {"code": "LINKED_PLAYERS", "title": "Shares devices or payment methods with other accounts"},
+      "reasons": [
+        {"code": "LINKED_PLAYERS", "anomaly_type": "linked_players", "team": "AML", "title": "Shares devices or payment methods with other accounts",
+         "detail": "Linked to 4 other accounts (cluster C90005) through 3 shared device, payment method or address identifiers.",
+         "evidence": {"network_cluster_id": "C90005", "network_cluster_size": 5, "shared_identifier_count": 3, "linked_player_count": 4},
+         "comparison": {"peer_median": 0}, "points": 35},
+        {"code": "CASH_IN_CASH_OUT", "anomaly_type": "money_movement", "team": "AML", "title": "Money in and out with little real betting",
+         "detail": "$7,200.00 deposited and $6,050.00 withdrawn in 30 days, but only $2,110.00 was bet (29% of deposits).",
+         "evidence": {"deposits_30d": 7200, "withdrawals_30d": 6050, "turnover_30d": 2110, "turnover_to_deposit_ratio": 0.29},
+         "comparison": {"own_baseline": 2400}, "points": 25},
+        {"code": "DEPOSIT_SURGE", "anomaly_type": "behaviour_change", "team": "Safer Gambling", "title": "Deposits sharply up on own history",
+         "detail": "$7,200.00 deposited in 30 days vs $2,400.00 per 30 days over the previous 90 (3.0x).",
+         "evidence": {"deposits_30d": 7200, "deposit_change_ratio": 3.0}, "comparison": {"own_baseline": 2400, "peer_median": 210}, "points": 20}
+      ],
+      "points_total": 80,
+      "recommended_action": {"action": "Review the linked accounts as one case; hold withdrawals to shared payment methods", "team": "AML",
+        "rationale": "5 accounts share identifiers and money is cycled through with only 29% of deposits bet."},
+      "profile": {"age_band": "25-34", "occupation": "Delivery driver", "income_band": "20-40k", "home_region": "Southwestern ON", "signup_date": "2025-03-03"},
+      "peer_group": "25-34 | 20-40k", "peer_group_level": "age x income", "peer_group_size": 260,
+      "last_activity": "2026-09-30 16:05", "window": {"current_days": 30, "baseline_days": 90, "end_date": "2026-09-30"}, "synthetic": true
+    }
+  ]
+}
