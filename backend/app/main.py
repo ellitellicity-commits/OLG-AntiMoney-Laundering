@@ -5,7 +5,7 @@ startup and serves alerts, player detail, peer comparison, linked players, a wee
 activity timeline, per-transaction flags and a printable case report. The AI layer
 (ai.py) adds grounded case summaries, case Q&A and plain-English queue search on a
 free LLM provider, with non-LLM fallbacks.
-Decisions are stored in data/decisions.json (Jube integration is a stretch goal).
+Decisions are stored in data/decisions.json; /jube/* syncs them with Jube case management (docs/JUBE.md).
 
 Run from the repo root:   uvicorn backend.app.main:app --reload
 Interactive docs:         http://127.0.0.1:8000/docs
@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from backend.integrations.jube_router import make_jube_router
 from backend.pipeline.common import BANDS, DATA, FEATURES, MODELS, ROOT, SCORES, SYNTH, TXN_FLAGS, load_metadata
 
 from . import ai, report
@@ -289,6 +290,35 @@ def record_decision(alert_id: str, body: DecisionIn):
     }
     store.save_decision(alert_id, record)
     return {"alert_id": alert_id, "status": record["status"], "team": store.team(a), "decision": record}
+
+
+# --- Jube case management (optional; inert until JUBE_URL / JUBE_MODEL_GUID are set, see docs/JUBE.md) ---
+
+JUBE_METRICS = ["deposits_30d", "withdrawals_30d", "turnover_30d", "net_loss_30d"]
+
+
+def jube_alerts() -> list[dict]:
+    """Alerts in the shape backend/integrations/jube.py expects, with the 30-day money figures added."""
+    out = []
+    for a in store.alerts:
+        f = store.features.loc[a["player_id"]] if a["player_id"] in store.features.index else None
+        out.append({**a, "team": store.team(a), "created_at": a.get("last_activity") or store.meta["end_date"],
+                    "key_metrics": {} if f is None else {k: clean(f[k]) or 0 for k in JUBE_METRICS}})
+    return out
+
+
+def jube_decision(alert_id: str, d: dict):
+    """Store a decision pulled from a Jube case exactly like one made in the dashboard."""
+    if alert_id not in store.alert_by_id:
+        return
+    store.save_decision(alert_id, {
+        "decision": d["decision"], "note": d.get("note") or d.get("reason") or "", "team": None,
+        "investigator": f"{d.get('investigator') or 'unknown'} (via Jube)", "status": STATUS_FOR[d["decision"]],
+        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+    })
+
+
+app.include_router(make_jube_router(get_alerts=jube_alerts, record_decision=jube_decision))
 
 
 @app.get("/players/{player_id}", response_model=PlayerDetail)
