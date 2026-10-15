@@ -1,0 +1,4 @@
+txn_id,player_id,round_id,timestamp,type,amount_cad,odds,sport,market,channel,device_id,ip_region,payment_method_id
+CBN-T0000001,P00001,R000000101,2026-10-01T18:00:05Z,bet,20.00,1.85,crash,crash,web,D00001,Toronto,
+CBN-T0000002,P00001,R000000101,2026-10-01T18:00:11Z,payout,37.00,1.85,crash,crash,web,D00001,Toronto,
+CBN-T0000003,P00002,R000000101,2026-10-01T18:00:06Z,bet,50.00,,crash,crash,app,D00002,Ottawa,

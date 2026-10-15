@@ -1,0 +1,2 @@
+export_id,staff_id,exported_at,date_from,date_to,filters,row_count,schema_version
+EXP-000001,S0042,2026-10-02T09:15:00Z,2026-10-01T00:00:00Z,2026-10-02T00:00:00Z,game=crash,3,cbn-1.0
