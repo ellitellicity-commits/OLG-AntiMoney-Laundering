@@ -355,6 +355,7 @@
   }
 
   function renderDetail(message) {
+    stopSpeaking();  // never keep reading a previous alert or tab
     const { alert: a, peers, player, network, timeline } = state.detail;
     const end = a.window?.end_date;
     const p = a.profile;
@@ -603,6 +604,84 @@
       </div>`;
   }
 
+  // --- Read aloud (browser text-to-speech) -------------------------------------------------
+  // Uses the browser's built-in speechSynthesis with the operating system's voices: free, offline,
+  // and independent of which AI provider wrote the text. Never auto-plays; one utterance at a time.
+
+  const tts = { supported: "speechSynthesis" in window, button: null, voice: null };
+
+  function pickVoice() {
+    const voices = tts.supported ? speechSynthesis.getVoices() : [];
+    const en = voices.filter((v) => /^en[-_]/i.test(v.lang));
+    tts.voice = en.find((v) => /en[-_]CA/i.test(v.lang)) || en.find((v) => /en[-_]US/i.test(v.lang) && v.localService)
+      || en.find((v) => v.localService) || en[0] || null;
+  }
+  if (tts.supported) {
+    pickVoice();
+    speechSynthesis.addEventListener?.("voiceschanged", pickVoice);
+  }
+
+  // Make figures and symbols read naturally: "$83,400.00" -> "$83,400", "20.0x" -> "20.0 times".
+  function speakable(text) {
+    return text
+      .replace(/\$(\d[\d,]*)\.00\b/g, "$$$1")
+      .replace(/(\d)\s*[x×]\b/g, "$1 times")
+      .replace(/×/g, " times ").replace(/≥/g, " at least ").replace(/≤/g, " at most ")
+      .replace(/[‐‑‒–—]/g, "-").replace(/\s+-\s+/g, ", ")
+      .replace(/\be\.g\./gi, "for example").replace(/\bi\.e\./gi, "that is")
+      .replace(/\s*·\s*/g, ", ").replace(/\s+/g, " ").trim();
+  }
+
+  // Chrome stops long single utterances after ~15 s, so speak sentence by sentence.
+  function sentences(text) {
+    // Split only where punctuation is followed by a space, so decimals like "20.0" stay intact.
+    return speakable(text).split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  function setTtsButton(btn, speaking) {
+    btn.textContent = speaking ? "Stop reading" : "Read aloud";
+    btn.setAttribute("aria-pressed", String(speaking));
+  }
+
+  function stopSpeaking() {
+    if (!tts.supported) return;
+    speechSynthesis.cancel();
+    if (tts.button) setTtsButton(tts.button, false);
+    tts.button = null;
+  }
+
+  function speak(text, btn) {
+    const parts = sentences(text);
+    if (!parts.length) return;
+    stopSpeaking();
+    tts.button = btn;
+    setTtsButton(btn, true);
+    parts.forEach((part, i) => {
+      const u = new SpeechSynthesisUtterance(part);
+      if (tts.voice) { u.voice = tts.voice; u.lang = tts.voice.lang; }
+      u.rate = 1;
+      if (i === parts.length - 1) u.onend = () => { if (tts.button === btn) { setTtsButton(btn, false); tts.button = null; } };
+      u.onerror = () => { if (tts.button === btn) { setTtsButton(btn, false); tts.button = null; } };
+      speechSynthesis.speak(u);
+    });
+  }
+
+  // Button markup: `target` is the id of the element to read, or omitted to read the
+  // .ask-a answer in the same list item.
+  function ttsButton(target) {
+    if (!tts.supported) return "";
+    return `<button type="button" class="btn-link tts-btn" aria-pressed="false"${target ? ` data-tts-for="${esc(target)}"` : ""}>Read aloud</button>`;
+  }
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest?.(".tts-btn");
+    if (!btn) return;
+    if (tts.button === btn) { stopSpeaking(); return; }
+    const source = btn.dataset.ttsFor ? document.getElementById(btn.dataset.ttsFor) : btn.closest("li")?.querySelector(".ask-a");
+    if (source?.textContent.trim()) speak(source.textContent, btn);
+  });
+  window.addEventListener("pagehide", stopSpeaking);
+
   // --- AI: case summary and Q&A ----------------------------------------------------------
   // The summary sits above the evidence and is never shown without it (DESIGN.md).
 
@@ -628,8 +707,8 @@
         : `${s.label} · built-in template`;
       $("#sum-text").textContent = s.text;
       $("#sum-meta").textContent = how;
-      $("#sum-actions").innerHTML = s.source === "llm"
-        ? `<button type="button" class="btn-link" id="sum-refresh">Regenerate</button>` : "";
+      $("#sum-actions").innerHTML = `<span class="head-actions">${s.text ? ttsButton("sum-text") : ""}${s.source === "llm"
+        ? `<button type="button" class="btn-link" id="sum-refresh">Regenerate</button>` : ""}</span>`;
       $("#sum-note").hidden = !s.note;
       $("#sum-note").textContent = s.note || "";
       $("#sum-refresh")?.addEventListener("click", () => loadSummary(alertId, state.token, true));
@@ -661,7 +740,8 @@
         <button type="submit" class="btn">Ask</button>
       </form>
       <ol class="ask-log" id="ask-log" aria-live="polite">${state.askHistory.reduce((html, t, i, all) =>
-        t.role === "user" ? html + `<li><div class="ask-q">${esc(t.content)}</div><div class="ask-a">${esc(all[i + 1]?.content || "")}</div></li>` : html, "")}</ol>
+        t.role === "user" ? html + `<li><div class="ask-q">${esc(t.content)}</div><div class="ask-a">${esc(all[i + 1]?.content || "")}</div>`
+          + `<div class="ask-tools">${ttsButton()}</div></li>` : html, "")}</ol>
     </section>`;
   }
 
@@ -682,7 +762,8 @@
         });
         const warn = res.unverified_numbers?.length
           ? `<div class="ask-warn">Check: ${esc(res.unverified_numbers.join(", "))} not found in the evidence.</div>` : "";
-        item.querySelector(".ask-a").outerHTML = `<div class="ask-a">${esc(res.answer)}</div>${warn}`;
+        item.querySelector(".ask-a").outerHTML = `<div class="ask-a">${esc(res.answer)}</div>${warn}`
+          + `<div class="ask-tools">${ttsButton()}</div>`;
         if (res.source === "llm") {
           state.askHistory.push({ role: "user", content: question }, { role: "assistant", content: res.answer });
         }

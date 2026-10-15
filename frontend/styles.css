@@ -335,6 +335,9 @@ a.btn { text-decoration: none; display: inline-block; }
 .ask-q { font-weight: 600; }
 .ask-a { max-width: 72ch; white-space: pre-wrap; }
 .ask-warn { margin-top: var(--s-1); font-size: 12px; font-weight: 600; color: var(--risk-high-bg); }
+.ask-tools { margin-top: var(--s-1); font-size: 12px; }
+.head-actions { display: inline-flex; gap: var(--s-3); font-size: 12px; }
+.tts-btn[aria-pressed="true"] { font-weight: 600; }
 
 .timeline > svg { display: block; width: 100%; height: auto; overflow: visible; }
 .timeline text { font-family: var(--sans); font-size: 12px; fill: var(--ink); }
