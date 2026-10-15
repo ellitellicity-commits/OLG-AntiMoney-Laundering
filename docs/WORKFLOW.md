@@ -34,7 +34,7 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
-**Status:** Done. 5,000 players, 180 days ending 2026-09-30, 190 injected players (30–40 per scenario incl. `linked_ring`). Also writes `benign_labels.csv` (busy month, travel, high roller, household, steady high value): normal players with innocent-but-unusual behaviour, used to explain false positives. Same seed gives byte-identical files (checked).
+**Status:** Done. 5,000 players, 180 days ending 2026-09-30, 289 injected players in 9 scenarios (income mismatch incl. occupation-implausible incomes, peer deviation, location anomaly, behaviour change, structuring, third-party funding, dormant reactivation, identity risk, linked rings). Also writes `payment_methods.csv` and KYC / PEP / sanctions fields, and `benign_labels.csv` (busy month, travel, high roller, household, steady high value, PEP, unverified identity, false screening match): normal players with innocent-but-unusual behaviour, used to explain false positives. Same seed gives byte-identical files (checked).
 
 **Done when:** running the script twice with the same seed produces identical files; every scenario has at least 20 labelled players; normal players look plausible (spend roughly in line with income band); and nothing in the data is real.
 
@@ -196,7 +196,7 @@ Only start after steps 1–6 work end to end. Suggested order:
 
 **Owner:** TBD
 
-**Status:** Network analysis done (`LINKED_PLAYERS` reason, `/players/{id}/network`, linked-players panel). Automated recommendations done for reason combinations, each with a one-line rationale. ML + SHAP done (`backend/pipeline/train_model.py`, step 2b): out-of-fold scoring, so no player is scored by a model that saw them; precision@50 was already 100%, so the measured gain is recall (89% → 95%; peer deviation 45% → 70%) with no extra false positives. LLM summary done (`backend/app/ai.py`) plus case Q&A and plain-English queue search: every number in a summary is checked automatically against the case file (instead of a 10-alert spot check), with a retry and then a template fallback. Also added: compliance indicators (structuring, 24-hour rule, sanctions, KYC, PEP, third-party funding, U-turns), behaviour groups, a watchlist, confidence ratings, per-transaction flags, a weekly timeline, a network graph, an overview screen, a printable case report and a data-contract checker (`check_data.py`, `docs/DATA_INTEGRATION.md`). Jube not started.
+**Status:** Network analysis done (`LINKED_PLAYERS` reason, `/players/{id}/network`, linked-players panel). Automated recommendations done for reason combinations, each with a one-line rationale. ML + SHAP done (`backend/pipeline/train_model.py`, step 2b): out-of-fold scoring, so no player is scored by a model that saw them; precision@50 was already 100%, so the measured gain is recall (92% → 96%; peer deviation 48% → 72%) with false positives essentially unchanged (0.38% → 0.40%). LLM summary done (`backend/app/ai.py`) plus case Q&A and plain-English queue search: every number in a summary is checked automatically against the case file (instead of a 10-alert spot check), with a retry and then a template fallback. Also added: compliance indicators (structuring, 24-hour rule, sanctions, KYC, PEP, third-party funding, U-turns), behaviour groups, a watchlist, confidence ratings, per-transaction flags, a weekly timeline, a network graph, an overview screen, a printable case report and a data-contract checker (`check_data.py`, `docs/DATA_INTEGRATION.md`). Jube not started.
 
 ---
 
@@ -212,6 +212,6 @@ Only start after steps 1–6 work end to end. Suggested order:
 
 **Owner:** TBD
 
-**Status:** `docs/DEMO.md`, `run_demo.ps1` and `run_demo.sh` done; showcase alerts ALR-01023 (AML), ALR-04590 (Fraud), ALR-01095 (Safer Gambling). Slides and time limit TBD.
+**Status:** `docs/DEMO.md`, `run_demo.ps1` and `run_demo.sh` done; showcase alerts ALR-03415 (AML, occupation mismatch), ALR-00405 (structuring), ALR-02426 (third-party funding), ALR-01348 (Fraud, account takeover), ALR-02503 / ALR-04566 (sanctions match, real and benign), ALR-03253 (Safer Gambling), ALR-00368 (caught only by the AI model), ALR-02309 (linked ring). Slides and time limit TBD.
 
 **Done when:** a teammate who did not build it can start the stack from a clean clone using `README.md` and walk through all 4 requirements within the time limit (**TBD**).

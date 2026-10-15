@@ -1,6 +1,6 @@
 """Step 3 - Detection and scoring.
 
-Four detectors feed one explainable 0-100 risk score:
+Several detectors feed one explainable 0-99 risk score:
   1. Rules        clear thresholds per anomaly type, each emitting a reason code
                   (including FINTRAC-style compliance indicators: $10,000 within 24 hours
                   and structuring just under it)

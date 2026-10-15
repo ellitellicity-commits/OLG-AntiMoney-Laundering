@@ -15,7 +15,7 @@ Confirmed by the team:
 - **Backend:** Python, FastAPI
 - **Frontend:** plain HTML, CSS and JavaScript (no framework)
 - **Alerting and case management:** Jube (open-source transaction monitoring / case management)
-- **Detection:** rules + Isolation Forest + peer-group z-scores. Optional: LightGBM or XGBoost with SHAP explanations. Optional: LLM-written summaries that may only restate evidence the system has already computed.
+- **Detection:** rules + peer-group z-scores + behaviour groups (k-means) + Isolation Forest + a supervised gradient-boosting model with SHAP explanations (built with scikit-learn). LLM-written summaries, case Q&A and queue search on free providers (Ollama, Groq, Gemini) may only restate evidence the system has already computed, and every number is checked.
 - Components connect through HTTP APIs.
 
 Deployment target: **TBD** (assumed local laptop demo for the hackathon *(inferred)*).
