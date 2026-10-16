@@ -60,8 +60,8 @@ const topK = [
   gap: 16px;
   align-items: stretch;
 }
-.panel { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; }
-.big { font-size: 88px; line-height: 1; color: var(--accent); margin-top: 8px; }
+.panel { display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; }
+.big { font-size: 68px; line-height: 1; color: var(--accent); margin-top: 8px; }
 .hero .muted { font-size: 18px; }
 .small { font-size: 15px; margin-top: auto; }
 
