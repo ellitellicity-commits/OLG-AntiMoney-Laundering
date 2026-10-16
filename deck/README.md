@@ -1,17 +1,17 @@
 # Pitch deck
 
-A 5-slide, ~2-minute pitch deck built with [Slidev](https://sli.dev). Everything runs offline: fonts come
+A 3-slide, ~2-minute pitch deck built with [Slidev](https://sli.dev). Everything runs offline: fonts come
 from `node_modules/@fontsource`, images from `public/img/`, and no CDN is used.
 
 | File | What it is |
 |---|---|
-| `slides.md` | The 5 slides and their speaker notes (with timings) |
+| `slides.md` | The 3 slides and their speaker notes (with timings) |
 | `components/ProjectName.vue` | **The project name, in one place.** Edit it to rename the deck |
-| `components/Pipeline.vue`, `components/Results.vue` | Static diagram and results panels |
+| `components/TitleArt.vue`, `components/Pipeline.vue`, `components/Results.vue` | Static title illustration, pipeline diagram and results panels |
 | `styles/` | Theme tokens from `../DESIGN.md` and the bundled fonts |
 | `public/img/` | Real dashboard screenshots (synthetic data) |
 | `export/pitch-deck.pdf`, `export/pitch-deck.pptx` | Exported deck (committed) |
-| `screenshots/` | Every slide at 1920x1080 and 1280x720, from the last check |
+| `screenshots/` | Slides 1-3 at 1920x1080 and 1280x720, from the last check (slide-4/5 files are from the earlier 5-slide version) |
 | `SOURCES.md` | Where every number comes from |
 | `scripts/` | Dashboard screenshots and slide checks (Playwright with Microsoft Edge) |
 
@@ -71,7 +71,7 @@ python -m http.server 4173 --directory dist      # in a second terminal (any sta
 npm run check
 ```
 
-`npm run check` screenshots every slide at 1920x1080 and 1280x720 into `screenshots/` and fails on text outside
+`npm run check` screenshots slides 1-3 at 1920x1080 and 1280x720 into `screenshots/` and fails on text outside
 the slide, clipped text, contrast below 4.5:1, text under 13px on the 980px canvas, or any request leaving the
 local server.
 
