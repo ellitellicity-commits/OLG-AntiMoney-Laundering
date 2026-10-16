@@ -1,0 +1,433 @@
+{
+ "overall": {
+  "players": 5000,
+  "injected_risky": 200,
+  "alerts": 193,
+  "alert_precision": 0.9482,
+  "overall_recall": 0.915,
+  "false_positive_rate": 0.0021,
+  "false_positives": 10,
+  "rules_only_false_positive_rate": 0.0,
+  "rules_only_alerts": 11,
+  "alert_threshold": 40
+ },
+ "recall_by_scenario": {
+  "behaviour_change": {
+   "players": 40,
+   "recall": 0.975,
+   "typed_recall": 0.975,
+   "rules_only_recall": 0.0,
+   "median_score": 82.0
+  },
+  "income_mismatch": {
+   "players": 40,
+   "recall": 0.925,
+   "typed_recall": 0.85,
+   "rules_only_recall": 0.0,
+   "median_score": 92.5
+  },
+  "linked_ring": {
+   "players": 40,
+   "recall": 1.0,
+   "typed_recall": 1.0,
+   "rules_only_recall": 0.225,
+   "median_score": 100.0
+  },
+  "location_anomaly": {
+   "players": 40,
+   "recall": 1.0,
+   "typed_recall": 1.0,
+   "rules_only_recall": 0.0,
+   "median_score": 100.0
+  },
+  "peer_deviation": {
+   "players": 40,
+   "recall": 0.675,
+   "typed_recall": 0.675,
+   "rules_only_recall": 0.05,
+   "median_score": 42.0
+  }
+ },
+ "precision_at_k": {
+  "p@25": {
+   "combined": 1.0,
+   "rules_only": 0.88,
+   "isolation_forest_only": 1.0
+  },
+  "p@50": {
+   "combined": 1.0,
+   "rules_only": 0.72,
+   "isolation_forest_only": 1.0
+  },
+  "p@100": {
+   "combined": 1.0,
+   "rules_only": 0.55,
+   "isolation_forest_only": 1.0
+  },
+  "p@200": {
+   "combined": 0.935,
+   "rules_only": 0.3,
+   "isolation_forest_only": 0.845
+  }
+ },
+ "rule_hit_rate": {
+  "CASH_IN_CASH_OUT": {
+   "income_mismatch": 0.075,
+   "peer_deviation": 0.0,
+   "location_anomaly": 0.075,
+   "behaviour_change": 0.025,
+   "linked_ring": 0.0,
+   "normal": 0.0
+  },
+  "DEPOSIT_SPIKE": {
+   "income_mismatch": 0.525,
+   "peer_deviation": 0.05,
+   "location_anomaly": 0.65,
+   "behaviour_change": 1.0,
+   "linked_ring": 0.325,
+   "normal": 0.007
+  },
+  "IMPOSSIBLE_TRAVEL": {
+   "income_mismatch": 0.0,
+   "peer_deviation": 0.0,
+   "location_anomaly": 0.875,
+   "behaviour_change": 0.0,
+   "linked_ring": 0.0,
+   "normal": 0.0
+  },
+  "INCOME_MISMATCH": {
+   "income_mismatch": 0.875,
+   "peer_deviation": 0.2,
+   "location_anomaly": 0.025,
+   "behaviour_change": 0.175,
+   "linked_ring": 0.825,
+   "normal": 0.0
+  },
+  "LATE_NIGHT_SHIFT": {
+   "income_mismatch": 0.025,
+   "peer_deviation": 0.0,
+   "location_anomaly": 0.375,
+   "behaviour_change": 0.875,
+   "linked_ring": 0.0,
+   "normal": 0.023
+  },
+  "LINKED_PLAYERS": {
+   "income_mismatch": 0.0,
+   "peer_deviation": 0.0,
+   "location_anomaly": 0.0,
+   "behaviour_change": 0.0,
+   "linked_ring": 1.0,
+   "normal": 0.0
+  },
+  "LOSS_CHASING": {
+   "income_mismatch": 0.0,
+   "peer_deviation": 0.0,
+   "location_anomaly": 0.05,
+   "behaviour_change": 0.975,
+   "linked_ring": 0.0,
+   "normal": 0.002
+  },
+  "MODEL_OUTLIER": {
+   "income_mismatch": 0.85,
+   "peer_deviation": 0.6,
+   "location_anomaly": 1.0,
+   "behaviour_change": 1.0,
+   "linked_ring": 1.0,
+   "normal": 0.015
+  },
+  "NEW_DEVICE_AWAY": {
+   "income_mismatch": 0.0,
+   "peer_deviation": 0.0,
+   "location_anomaly": 1.0,
+   "behaviour_change": 0.0,
+   "linked_ring": 0.0,
+   "normal": 0.0
+  },
+  "NEW_DEVICE_NEW_PAYOUT": {
+   "income_mismatch": 0.0,
+   "peer_deviation": 0.0,
+   "location_anomaly": 0.875,
+   "behaviour_change": 0.0,
+   "linked_ring": 0.0,
+   "normal": 0.0
+  },
+  "OPPOSITE_BETTING_LINKED": {
+   "income_mismatch": 0.0,
+   "peer_deviation": 0.0,
+   "location_anomaly": 0.0,
+   "behaviour_change": 0.0,
+   "linked_ring": 1.0,
+   "normal": 0.0
+  },
+  "PEER_DEVIATION": {
+   "income_mismatch": 0.975,
+   "peer_deviation": 0.975,
+   "location_anomaly": 0.6,
+   "behaviour_change": 0.6,
+   "linked_ring": 0.85,
+   "normal": 0.047
+  },
+  "STAKE_ESCALATION": {
+   "income_mismatch": 0.475,
+   "peer_deviation": 0.0,
+   "location_anomaly": 0.0,
+   "behaviour_change": 0.125,
+   "linked_ring": 0.375,
+   "normal": 0.0
+  },
+  "UNEXPECTED_LOCATION": {
+   "income_mismatch": 0.0,
+   "peer_deviation": 0.0,
+   "location_anomaly": 1.0,
+   "behaviour_change": 0.0,
+   "linked_ring": 0.0,
+   "normal": 0.003
+  }
+ },
+ "band_mix": {
+  "behaviour_change": {
+   "Critical": 13,
+   "High": 12,
+   "Medium": 14,
+   "Low": 1
+  },
+  "income_mismatch": {
+   "Critical": 25,
+   "High": 6,
+   "Medium": 6,
+   "Low": 3
+  },
+  "linked_ring": {
+   "Critical": 36,
+   "High": 0,
+   "Medium": 4,
+   "Low": 0
+  },
+  "location_anomaly": {
+   "Critical": 25,
+   "High": 8,
+   "Medium": 7,
+   "Low": 0
+  },
+  "normal": {
+   "Critical": 0,
+   "High": 0,
+   "Medium": 10,
+   "Low": 4790
+  },
+  "peer_deviation": {
+   "Critical": 1,
+   "High": 6,
+   "Medium": 20,
+   "Low": 13
+  }
+ },
+ "false_positive_examples": [
+  {
+   "player_id": "P02310",
+   "score": 59,
+   "band": "Medium",
+   "reasons": [
+    {
+     "code": "PEER_DEVIATION",
+     "detail": "Amount staked (30 days) of $4,741 (12.1x the peer median of $392) sits in the top 0.1% of the peer group (25-34 | 150k+, n=62). Also unusual: average stake.",
+     "points": 34
+    },
+    {
+     "code": "DEPOSIT_SPIKE",
+     "detail": "Deposited $1,890 in the last 30 days against a usual $577 per 30 days (3.1x).",
+     "points": 20
+    },
+    {
+     "code": "MODEL_OUTLIER",
+     "detail": "The Isolation Forest ranks this player more unusual than 95.6% of all players; the most unusual inputs are avg stake 30d, deposit change ratio, deposits 30d.",
+     "points": 5
+    }
+   ]
+  },
+  {
+   "player_id": "P02785",
+   "score": 46,
+   "band": "Medium",
+   "reasons": [
+    {
+     "code": "PEER_DEVIATION",
+     "detail": "Largest single deposit of $320 (10.7x the peer median of $30.00) sits in the top 4.0% of the peer group (35-44 | 60-100k | Central Ontario, n=50).",
+     "points": 26
+    },
+    {
+     "code": "DEPOSIT_SPIKE",
+     "detail": "Deposited $320 in the last 30 days against a usual $70.00 per 30 days (3.1x).",
+     "points": 20
+    }
+   ]
+  },
+  {
+   "player_id": "P00393",
+   "score": 42,
+   "band": "Medium",
+   "reasons": [
+    {
+     "code": "PEER_DEVIATION",
+     "detail": "Average stake of $188 (12.5x the peer median of $15.06) sits in the top 3.2% of the peer group (35-44 | 100-150k | Toronto/GTA, n=95).",
+     "points": 22
+    },
+    {
+     "code": "DEPOSIT_SPIKE",
+     "detail": "Deposited $400 in the last 30 days against a usual $100 per 30 days (3.0x).",
+     "points": 20
+    }
+   ]
+  }
+ ],
+ "missed": [
+  {
+   "player_id": "P01638",
+   "scenario": "peer_deviation",
+   "score": 0,
+   "reason_codes": ""
+  },
+  {
+   "player_id": "P04739",
+   "scenario": "income_mismatch",
+   "score": 20,
+   "reason_codes": "INCOME_MISMATCH"
+  },
+  {
+   "player_id": "P00368",
+   "scenario": "peer_deviation",
+   "score": 21,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P03191",
+   "scenario": "peer_deviation",
+   "score": 23,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P01231",
+   "scenario": "peer_deviation",
+   "score": 28,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P00499",
+   "scenario": "peer_deviation",
+   "score": 30,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P00556",
+   "scenario": "peer_deviation",
+   "score": 30,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P01619",
+   "scenario": "peer_deviation",
+   "score": 31,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P00816",
+   "scenario": "peer_deviation",
+   "score": 33,
+   "reason_codes": "PEER_DEVIATION;MODEL_OUTLIER"
+  },
+  {
+   "player_id": "P04420",
+   "scenario": "peer_deviation",
+   "score": 33,
+   "reason_codes": "PEER_DEVIATION;MODEL_OUTLIER"
+  },
+  {
+   "player_id": "P03508",
+   "scenario": "peer_deviation",
+   "score": 35,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P03637",
+   "scenario": "behaviour_change",
+   "score": 35,
+   "reason_codes": "DEPOSIT_SPIKE;LOSS_CHASING;MODEL_OUTLIER"
+  },
+  {
+   "player_id": "P03909",
+   "scenario": "peer_deviation",
+   "score": 37,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P01935",
+   "scenario": "peer_deviation",
+   "score": 37,
+   "reason_codes": "PEER_DEVIATION;MODEL_OUTLIER"
+  },
+  {
+   "player_id": "P04589",
+   "scenario": "income_mismatch",
+   "score": 38,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P01689",
+   "scenario": "peer_deviation",
+   "score": 38,
+   "reason_codes": "PEER_DEVIATION"
+  },
+  {
+   "player_id": "P02715",
+   "scenario": "income_mismatch",
+   "score": 38,
+   "reason_codes": "PEER_DEVIATION"
+  }
+ ],
+ "z_sweep": [
+  {
+   "z_threshold": 2.0,
+   "chosen": false,
+   "false_positives": 22,
+   "precision_at_200": 0.905,
+   "recall_behaviour_change": 0.975,
+   "recall_income_mismatch": 1.0,
+   "recall_linked_ring": 1.0,
+   "recall_location_anomaly": 1.0,
+   "recall_peer_deviation": 0.8
+  },
+  {
+   "z_threshold": 2.5,
+   "chosen": true,
+   "false_positives": 10,
+   "precision_at_200": 0.935,
+   "recall_behaviour_change": 0.975,
+   "recall_income_mismatch": 0.925,
+   "recall_linked_ring": 1.0,
+   "recall_location_anomaly": 1.0,
+   "recall_peer_deviation": 0.675
+  },
+  {
+   "z_threshold": 3.0,
+   "chosen": false,
+   "false_positives": 2,
+   "precision_at_200": 0.935,
+   "recall_behaviour_change": 0.975,
+   "recall_income_mismatch": 0.925,
+   "recall_linked_ring": 1.0,
+   "recall_location_anomaly": 1.0,
+   "recall_peer_deviation": 0.525
+  },
+  {
+   "z_threshold": 3.5,
+   "chosen": false,
+   "false_positives": 2,
+   "precision_at_200": 0.92,
+   "recall_behaviour_change": 0.975,
+   "recall_income_mismatch": 0.9,
+   "recall_linked_ring": 1.0,
+   "recall_location_anomaly": 1.0,
+   "recall_peer_deviation": 0.4
+  }
+ ]
+}

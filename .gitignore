@@ -45,3 +45,6 @@ data/models/
 .playwright-cli/
 .impeccable/
 .claude/
+
+# Local investigator decisions (SQLite)
+data/*.db
