@@ -147,32 +147,45 @@ This creates `.venv`, installs dependencies, runs the pipeline (about 3 minutes,
 dashboard at http://127.0.0.1:8000/app/. Add `-SkipPipeline` (`--skip-pipeline`) to reuse existing data.
 If PowerShell blocks the script: `powershell -ExecutionPolicy Bypass -File .\run_demo.ps1`.
 
-**Step by step**
+**Step by step** (Windows PowerShell; macOS / Linux equivalents are noted under each block)
 
 **1. Prerequisites**
-- Python: tested with **3.14** (the only version on the build machine; 3.11 was suggested but is unconfirmed, see open item 4 in [docs/HANDOFF.md](docs/HANDOFF.md))
+- Python 3.13 or newer, installed from python.org with "Add python.exe to PATH" ticked. Tested on
+  **3.13.15** (Windows 11) and 3.14. Check with `python --version`; if that opens the Microsoft Store, Python
+  is not on PATH (use `py -3.13` in place of `python` in step 3, or reinstall with the PATH box ticked).
 - Git
-- Jube: not integrated yet (stretch). Decisions are stored in `data/decisions.json` instead.
+- Jube is optional (see [docs/JUBE.md](docs/JUBE.md)). Decisions are stored in `data/decisions.json`.
 
-**2. Create and activate a virtual environment** (from the repo root)
+**2. Get the code**
 
-```bash
+```powershell
+git clone https://github.com/ellitellicity-commits/OLG-AntiMoney-Laundering.git
+cd OLG-AntiMoney-Laundering
+```
+
+**3. Create and activate a virtual environment** (from the repo root)
+
+```powershell
 python -m venv .venv
-# Windows (PowerShell)
 .venv\Scripts\Activate.ps1
-# macOS / Linux
-source .venv/bin/activate
 ```
 
-**3. Install dependencies**
+If PowerShell says running scripts is disabled, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+once and try again. macOS / Linux: `python3 -m venv .venv` then `source .venv/bin/activate`.
 
-```bash
-pip install -r requirements.txt
+**4. Install dependencies**
+
+```powershell
+python -m pip install -r requirements.txt
 ```
 
-**4. Run the data pipeline**
+Use `python -m pip` and `python -m uvicorn` (step 6), not plain `pip` / `uvicorn`: on Windows 11 with Smart App
+Control turned on, the `pip.exe` and `uvicorn.exe` launchers in a new `.venv` are blocked ("An Application
+Control policy has blocked this file"), while `python -m ...` works everywhere.
 
-```bash
+**5. Run the data pipeline** (about 3 minutes in total)
+
+```powershell
 python backend/pipeline/generate_data.py   # step 1: synthetic data (seeded, ~30 s)
 python backend/pipeline/build_features.py  # step 2: features, peer stats, transaction flags (~10 s)
 python backend/pipeline/train_model.py     # step 2b: AI risk model + SHAP, out-of-fold (~10 s)
@@ -181,15 +194,28 @@ python backend/pipeline/cross_seed.py      # step 3b: test on two populations th
 python backend/pipeline/validate.py        # step 4: metrics + docs/VALIDATION.md
 ```
 
-**5. Start the API**
+The outputs go to `data/synthetic/`, `data/features/`, `data/models/` and `data/scores/` (git-ignored).
+`validate.py` also rewrites `docs/VALIDATION.md`, which is committed, so `git status` shows it as modified
+when the numbers differ; don't commit that change unless you mean to update the published results.
 
-```bash
-uvicorn backend.app.main:app --reload
+**6. Start the API**
+
+```powershell
+python -m uvicorn backend.app.main:app --reload
 ```
 
-The API runs at http://127.0.0.1:8000, with interactive docs at http://127.0.0.1:8000/docs.
+The API runs at http://127.0.0.1:8000, with interactive docs at http://127.0.0.1:8000/docs. Stop it with Ctrl+C.
 
-**6. Open the dashboard**
+**7. Run the tests** (optional, in a second terminal with the venv activated)
+
+```powershell
+python -m pytest -q
+```
+
+The tests build their own small dataset in a temporary folder (about 1 minute). Tests that read the demo data
+in `data/` are skipped until step 5 has been run.
+
+**8. Open the dashboard**
 
 The API also serves the dashboard at http://127.0.0.1:8000/app/. You can instead open `frontend/index.html`
 directly or serve the folder (`python -m http.server 5500 --directory frontend`); it then calls the API at

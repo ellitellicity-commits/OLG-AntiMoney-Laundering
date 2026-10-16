@@ -64,7 +64,7 @@ shouldn't collide.
 **Backend owner** (`backend/` only):
 1. Automated tests (pytest): pipeline determinism, every API endpoint, the 422 cases (close without reason,
    assign without team, decision without investigator name), the AI number check (`ai.unverified_numbers`).
-2. Confirm it runs on Python 3.11 / 3.12 (only 3.14 is tested; see open item #4).
+2. Confirm it runs on Python 3.11 / 3.12 (3.13 and 3.14 are tested; see open item #4).
 3. AI quality: try a larger free model (e.g. `ollama pull qwen2.5:7b`, then `LLM_MODEL=qwen2.5:7b` in `.env`) and
    compare the showcase summaries; `llama3.2` (3B) occasionally misreads meaning even when every number is right.
 4. Optional: SQLite for decisions instead of `data/decisions.json`; better peer-deviation recall (72%, the
@@ -111,7 +111,7 @@ The **Status** column records what the build used. "Built as" items work but wer
 | 1 | Team members and roles | Team lead | README "Team" | Open |
 | 2 | Owner for each build step (1–8) | Team lead | `WORKFLOW.md` owner lines | Open |
 | 3 | GitHub repository URL (must be **private**) | Team lead | `git remote`, README | Open: current repo is `github.com/ellitellicity-commits/OLG-AntiMoney-Laundering`; confirm it is private |
-| 4 | Python version (3.11 suggested, not confirmed) | Backend / data owner | README "Getting started" | Built as: tested on 3.14 only (the version on the build machine) |
+| 4 | Python version (3.11 suggested, not confirmed) | Backend / data owner | README "Getting started" | Built as: tested on 3.14 and 3.13.15 (Windows 11, fresh clone, merge-all-branches) |
 | 5 | Dataset size and injection rates (draft: 5,000 players, 180 days, 3–5% risky) | Data owner (step 1) | `WORKFLOW.md` step 1, `generate_data.py` config | Built as: 5,000 players, 180 days, 289 injected (5.8%, 9 scenarios) plus benign-but-unusual normal players (incl. PEPs, unverified identities and false screening matches) |
 | 6 | Peer-group definition (draft: age band × income band × region) | Detection owner (step 2) | `WORKFLOW.md` step 2 | Built as drafted, falling back to age × income, then income, for groups under 30 |
 | 7 | Score weights and z-score threshold (draft: \|z\| > 3) | Detection owner (steps 3–4) | `detect.py`, `docs/VALIDATION.md` | Built as: z > 3 (upward only, robust z on a log scale); points in `detect.py` |
