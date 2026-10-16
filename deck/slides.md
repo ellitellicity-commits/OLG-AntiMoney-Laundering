@@ -86,7 +86,7 @@ Sources: README.md "How the score works"; docs/VALIDATION.md "AI model (supervis
 
 <div class="label">Live dashboard</div>
 
-# Score, reasons and next step on one screen
+# Ranked, scored and explained on one screen
 
 <div class="shots">
   <figure class="shot">
@@ -133,11 +133,12 @@ Sources: README.md "How the score works"; docs/VALIDATION.md "AI model (supervis
 
 <!--
 [0:50–1:20] (~30 s)
-- Real screenshot of our running dashboard (synthetic data).
-- 1: the ranked queue. Highest risk first, every score shows a number and a label, never colour alone.
-- 2: open an alert: AI summary written only from computed evidence, key facts, confidence, strongest reasons.
-- 3: a recommended action and decision buttons, recorded in an audit trail with the investigator's name.
-- Also built (not shown): Evidence, Activity, Network graph of linked accounts, Ask-AI tabs.
+- Real screenshots of our dashboard running locally on synthetic data (left: the queue; right: the top alert opened).
+- 1: one ranked queue across AML, Fraud and Safer Gambling. Every score shows a number, a label and a meter, never colour alone.
+- 2: the score with a confidence rating; the alert also lists reasons it may be innocent.
+- 3: a case summary written only from computed evidence; every number is checked against the case file. It ends with a recommended next step.
+- The investigator decides: Accept, Escalate, Close as explained or Assign, recorded with their name in an audit trail.
+- Also built (not shown): Evidence, Activity and Network tabs (linked accounts sharing a device, card or address).
 -->
 
 ---
