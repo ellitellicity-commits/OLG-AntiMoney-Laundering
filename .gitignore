@@ -48,3 +48,7 @@ data/models/
 
 # Local investigator decisions (SQLite)
 data/*.db
+
+# Pitch deck (deck/): build output is regenerated; the exported PDF is committed on purpose
+dist/
+!deck/export/*.pdf
