@@ -181,7 +181,9 @@ python -m pip install -r requirements.txt
 
 Use `python -m pip` and `python -m uvicorn` (step 6), not plain `pip` / `uvicorn`: on Windows 11 with Smart App
 Control turned on, the `pip.exe` and `uvicorn.exe` launchers in a new `.venv` are blocked ("An Application
-Control policy has blocked this file"), while `python -m ...` works everywhere.
+Control policy has blocked this file"), while `python -m ...` works everywhere. If the install stops with
+`[WinError 206] The filename or extension is too long`, the folder path is too deep for Windows' 260-character
+limit: clone into a shorter path (for example under `Documents`) and start again from step 2.
 
 **5. Run the data pipeline** (about 3 minutes in total)
 
