@@ -1,6 +1,8 @@
 # CBN Crash Game input contract
 
-**Status: DRAFT for approval.** Nothing is built against it yet. The open questions at the end need an answer first.
+**Status: DRAFT, not approved. Five open questions are unanswered** (see [Open questions](#open-questions)).
+No CBN ingest, Player Profile or Staff Profile code exists yet; only this document and the two synthetic
+sample files in `tests/fixtures/` (`cbn_export_sample.csv`, `cbn_export_audit_sample.csv`) are in the repo.
 
 This document says exactly what this repo needs from a CBN Crash Game export so that it can build
 **Player Profiles** (win/loss ratio and money totals) and **Staff Profiles** (who exported what, and when).
@@ -167,7 +169,9 @@ export_id,staff_id,exported_at,date_from,date_to,filters,row_count,schema_versio
 EXP-000001,S0042,2026-10-02T09:15:00Z,2026-10-01T00:00:00Z,2026-10-02T00:00:00Z,game=crash,3,cbn-1.0
 ```
 
-## Open questions (answer before Step C)
+## Open questions
+
+These must be answered before the ingest and profile code is built.
 
 1. **Timezone.** The repo's current `timestamp` has no timezone, and the night-betting feature reads it
    as Ontario local time (hour < 6). This contract asks CBN for UTC with `Z`, and the ingest would convert

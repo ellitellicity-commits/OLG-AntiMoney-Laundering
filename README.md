@@ -132,6 +132,7 @@ Everything in `data/` (`.csv`, `.parquet`, `.json`) is generated and git-ignored
 | [docs/VALIDATION.md](docs/VALIDATION.md) | Measured recall, precision@k and false positives (generated) |
 | [docs/DEMO.md](docs/DEMO.md) | Demo talk track, click path and showcase alerts |
 | [docs/DATA_INTEGRATION.md](docs/DATA_INTEGRATION.md) | Data contract, where each field would come from, other gaming environments, running on real data |
+| [docs/cbn-input-contract.md](docs/cbn-input-contract.md) | **DRAFT (5 open questions).** What a CBN Crash Game export must contain for Player and Staff Profiles. No ingest or profile code exists yet |
 
 ## Getting started
 
