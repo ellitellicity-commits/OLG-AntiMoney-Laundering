@@ -43,4 +43,5 @@ data/models/
 
 # Local tooling output
 .playwright-cli/
-.impeccable/review/
+.impeccable/
+.claude/
