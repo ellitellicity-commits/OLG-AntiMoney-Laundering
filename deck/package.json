@@ -1,0 +1,19 @@
+{
+  "name": "aml-pitch-deck",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "slidev slides.md --open",
+    "build": "slidev build slides.md --base ./ --out dist",
+    "export:pdf": "slidev export slides.md --format pdf --output export/pitch-deck.pdf --timeout 60000",
+    "export:pptx": "slidev export slides.md --format pptx --output export/pitch-deck.pptx --timeout 60000"
+  },
+  "devDependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@slidev/cli": "^53.0.0",
+    "@slidev/theme-default": "^0.25.0",
+    "playwright": "^1.64.1",
+    "playwright-chromium": "^1.64.1"
+  }
+}
