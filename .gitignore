@@ -40,3 +40,7 @@ data/models/
 
 # Local test artefacts
 *.log
+
+# Local tooling output
+.playwright-cli/
+.impeccable/review/
