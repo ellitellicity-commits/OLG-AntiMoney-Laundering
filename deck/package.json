@@ -7,7 +7,7 @@
     "build": "slidev build slides.md --base ./ --out dist",
     "export:pdf": "slidev export slides.md --format pdf --output export/pitch-deck.pdf --timeout 60000 --executable-path \"C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe\"",
     "export:pptx": "slidev export slides.md --format pptx --output export/pitch-deck.pptx --timeout 60000 --executable-path \"C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe\"",
-    "check": "node scripts/check-slides.mjs http://127.0.0.1:4173 5"
+    "check": "node scripts/check-slides.mjs http://127.0.0.1:4173 3"
   },
   "devDependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
