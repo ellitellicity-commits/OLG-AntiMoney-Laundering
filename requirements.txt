@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+pydantic
 pandas
 numpy
 pyarrow
@@ -7,3 +8,5 @@ scikit-learn
 faker
 shap
 networkx
+pytest
+httpx

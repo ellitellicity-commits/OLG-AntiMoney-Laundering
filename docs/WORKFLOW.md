@@ -21,7 +21,7 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 **Outputs:**
 | File | Contents (minimum columns) |
 |---|---|
-| `data/synthetic/players.csv` | `player_id, age_band, occupation, income_band, home_region, signup_date` |
+| `data/synthetic/players.csv` | `player_id, age_band, occupation, income_band, home_region, signup_date`. The static mock also shows `initials`, exact `age` and `province`; see [API_CONTRACT.md](API_CONTRACT.md) and HANDOFF open item #15 |
 | `data/synthetic/transactions.csv` | `txn_id, player_id, timestamp, type (deposit / withdrawal / bet / payout), amount_cad, sport, market, odds, channel (web / app / retail), device_id, ip_region, payment_method_id` |
 | `data/synthetic/linked_identifiers.csv` | `player_id, identifier_type (device / payment_method / address), identifier_value`, used for network analysis |
 | `data/synthetic/scenario_labels.csv` | `player_id, scenario, start_date, end_date`: the ground truth for validation |
@@ -33,6 +33,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 **Script:** `backend/pipeline/generate_data.py`
 
 **Owner:** TBD
+
+**Status:** Done. 5,000 players, 180 days ending 2026-09-30, 289 injected players in 9 scenarios (income mismatch incl. occupation-implausible incomes, peer deviation, location anomaly, behaviour change, structuring, third-party funding, dormant reactivation, identity risk, linked rings). Also writes `payment_methods.csv` and KYC / PEP / sanctions fields, and `benign_labels.csv` (busy month, travel, high roller, household, steady high value, PEP, unverified identity, false screening match): normal players with innocent-but-unusual behaviour, used to explain false positives. Same seed gives byte-identical files (checked).
 
 **Done when:** running the script twice with the same seed produces identical files; every scenario has at least 20 labelled players; normal players look plausible (spend roughly in line with income band); and nothing in the data is real.
 
@@ -61,6 +63,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 **Script:** `backend/pipeline/build_features.py`
 
 **Owner:** TBD
+
+**Status:** Done. 51 columns per player, documented in the module docstring. Peer z-scores are robust (median / IQR) on a log scale; deposits, stake and bet frequency compare against peers *active* in the window, because a third of players don't deposit in a given month.
 
 **Done when:** every player has one row with no unexpected nulls, the feature list is written in a docstring with a one-line definition each, and injected players visibly stand out on their scenario's feature (quick check in a notebook).
 
@@ -97,6 +101,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
+**Status:** Done. The score is built from reason points: within one anomaly type the strongest flag counts in full and the rest at half, and above 70 points the score rises progressively more slowly (soft cap at 99), so strong cases stay ordered; ties break on total points, then the AI model. Reasons now include occupation mismatch, low-odds betting, third-party funding, U-turn withdrawals, rapid cash-outs, dormant reactivation, KYC / sanctions / PEP, behaviour-group deviation, structuring, the 24-hour rule, Isolation Forest and the supervised model. Each alert gets a confidence (High / Medium / Low) with mitigating factors; players below 40 that the AI models find unusual go to `watchlist.json`. Alerts are players scoring 40+.
+
 **Done when:** every alert has at least one reason with evidence values, scores fall in 0–100, bands follow the thresholds in `DESIGN.md`, and no alert has an empty explanation.
 
 ---
@@ -121,6 +127,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
+**Status:** Done. All checks pass; see `docs/VALIDATION.md`. Also reports score spread, precision by confidence, the watchlist and the cross-seed test (`cross_seed.py`: two new populations scored by the seed-42 model). Band cut-offs kept as drafted.
+
 **Done when:** the report runs in one command, every anomaly type has a recall number, the combined score beats rules-only on precision@50, and weights/thresholds chosen here are copied back into `detect.py` and `DESIGN.md`.
 
 ---
@@ -128,6 +136,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 ## Step 5 — API
 
 **What to build:** a FastAPI service that reads the step 3 outputs and serves them to the dashboard.
+
+**Response shapes:** the pydantic models in `backend/app/schemas.py` (browsable at `/docs`) are the reference. [API_CONTRACT.md](API_CONTRACT.md) is the earlier proposal behind the static mock and maps its fields onto the implemented API.
 
 **Endpoints (draft):**
 | Method | Path | Returns |
@@ -150,6 +160,8 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **Owner:** TBD
 
+**Status:** Done. Also `GET /meta` (filter options), `GET /watchlist`, `GET /audit` and `GET /audit.csv` (decisions with investigator names, which are now required), `GET /players/{id}/timeline` (weekly activity), `GET /stats` (incl. confidence, compliance counts and flag trends), `GET /model` (model card), `?confidence=`, `?include_watchlist=` and `sort=ai` on `/alerts`, `GET /alerts/{id}/report` (printable case report), `?min_score=` on `/alerts`, per-transaction `flags`, and the AI endpoints `GET /ai/status`, `GET /alerts/{id}/summary`, `POST /alerts/{id}/ask`, `POST /ai/search`. The dashboard is served at `/app/`. Decisions stored in `data/decisions.json`; Jube not integrated.
+
 **Done when:** `uvicorn backend.app.main:app` starts, every endpoint returns valid JSON when tested with `curl`, and the response shapes are documented in `/docs`.
 
 ---
@@ -158,13 +170,15 @@ Steps 5 (API) and 6 (Dashboard) can start in parallel once step 3 has produced a
 
 **What to build:** the investigator UI described in `DESIGN.md`: alert queue, player detail panel, "why flagged" list, peer comparison chart and recommended action with decision buttons.
 
-**Inputs:** the API from step 5 (or `frontend/mock/alerts.json` while the API is in progress).
+**Inputs:** the API from step 5 (or `frontend/mock/alerts.json` while the API is down). `frontend/mock_frontend.html` is an alternative static design (see `docs/DESIGN_SENTINEL.md`, open item #16).
 
-**Outputs:** `frontend/index.html`, `frontend/styles.css`, `frontend/app.js`.
+**Outputs:** the live dashboard `frontend/index.html` (with `frontend/styles.css` and `frontend/app.js`), served by the API at `/app/`. `frontend/mock_frontend.html` is a separate static mock.
 
 **Tool / library:** plain HTML/CSS/JS with `fetch()`. Chart: hand-built SVG or Chart.js (**TBD**). Fonts: IBM Plex Sans / Mono.
 
 **Owner:** TBD
+
+**Status:** Done. Queue with filters (incl. confidence), sort menu and watchlist toggle; tabbed detail panel (Overview: AI summary, key facts, confidence, top reasons; Evidence; Activity; Network graph; Ask AI); Overview screen (queue at a glance, compliance indicators, emerging-risk trends, watchlist, AI model incl. cross-seed results, audit trail). Charts are hand-built SVG. Tested in Chrome. Falls back to `frontend/mock/alerts.json` when the API is down.
 
 **Done when:** an investigator can, using only the keyboard, open the highest-risk alert, see score + reasons + peer chart + recommended action on one screen, and record a decision. Risk is never shown by colour alone, and "SYNTHETIC DATA" is visible.
 
@@ -179,10 +193,12 @@ Only start after steps 1–6 work end to end. Suggested order:
 | Network analysis | Graph of players sharing devices / payment methods / addresses. Flag clusters and add a `LINKED_PLAYERS` reason | `networkx` | Injected `linked_ring` players appear as a cluster and the reason shows on their alerts |
 | Automated recommendations | Expand the step 3 mapping to cover combinations of reasons | Python | Every alert has a recommendation with a one-line rationale |
 | Jube integration | Push alerts / sync decisions | Jube API (TBD) | A decision made in the dashboard appears in Jube |
-| ML model + SHAP | Train on injected labels and map SHAP top features onto reason items | `lightgbm` / `xgboost`, `shap` | Improves precision@50 in `VALIDATION.md` without breaking explanations |
-| LLM summary | 2–3 sentence summary written **only** from the alert JSON | LLM provider **TBD** | The summary never contains a number or fact missing from the evidence (spot-check 10 alerts) |
+| ML model + SHAP | Train on injected labels and map SHAP top features onto reason items | scikit-learn `HistGradientBoostingClassifier`, `shap` | Improves precision@50 in `VALIDATION.md` without breaking explanations |
+| LLM summary | 2–3 sentence summary written **only** from the alert JSON | Free: Ollama, Groq or Gemini | The summary never contains a number or fact missing from the evidence (spot-check 10 alerts) |
 
 **Owner:** TBD
+
+**Status:** Network analysis done (`LINKED_PLAYERS` reason, `/players/{id}/network`, linked-players panel). Automated recommendations done for reason combinations, each with a one-line rationale. ML + SHAP done (`backend/pipeline/train_model.py`, step 2b): out-of-fold scoring, so no player is scored by a model that saw them; precision@50 was already 100%, so the measured gain is recall (92% → 96%; peer deviation 48% → 72%) with false positives essentially unchanged (0.38% → 0.40%). LLM summary done (`backend/app/ai.py`) plus case Q&A and plain-English queue search: every number in a summary is checked automatically against the case file (instead of a 10-alert spot check), with a retry and then a template fallback. Also added: compliance indicators (structuring, 24-hour rule, sanctions, KYC, PEP, third-party funding, U-turns), behaviour groups, a watchlist, confidence ratings, per-transaction flags, a weekly timeline, a network graph, an overview screen, a printable case report and a data-contract checker (`check_data.py`, `docs/DATA_INTEGRATION.md`). Jube not started.
 
 ---
 
@@ -197,5 +213,7 @@ Only start after steps 1–6 work end to end. Suggested order:
 **Tool / library:** whatever runs the stack locally. A one-command start script (`run_demo.sh` / `run_demo.ps1`) is recommended.
 
 **Owner:** TBD
+
+**Status:** `docs/DEMO.md`, `run_demo.ps1` and `run_demo.sh` done; showcase alerts ALR-03415 (AML, occupation mismatch), ALR-00405 (structuring), ALR-02426 (third-party funding), ALR-01348 (Fraud, account takeover), ALR-02503 / ALR-04566 (sanctions match, real and benign), ALR-03253 (Safer Gambling), ALR-00368 (caught only by the AI model), ALR-02309 (linked ring). Slides and time limit TBD.
 
 **Done when:** a teammate who did not build it can start the stack from a clean clone using `README.md` and walk through all 4 requirements within the time limit (**TBD**).
